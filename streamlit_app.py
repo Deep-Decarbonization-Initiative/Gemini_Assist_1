@@ -163,18 +163,21 @@ if df_research is not None:
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
+        # Strict categorical filter exclusion logic
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
         if selected_treatments is not None:
             df_filtered = df_filtered[df_filtered[treatment_col].isin(selected_treatments)]
         if selected_recencies is not None:
             df_filtered = df_filtered[df_filtered[recency_col].isin(selected_recencies)]
+        if selected_locs is not None:
+            df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
+            
+        # Continuous ranges
         if selected_energy_range is not None:
             df_filtered = df_filtered[(df_filtered[energy_col] >= selected_energy_range[0]) & (df_filtered[energy_col] <= selected_energy_range[1])]
         if selected_freq_range is not None:
             df_filtered = df_filtered[(df_filtered[freq_col] >= selected_freq_range[0]) & (df_filtered[freq_col] <= selected_freq_range[1])]
-        if selected_locs is not None:
-            df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
         if selected_bring_range is not None:
             df_filtered = df_filtered[(df_filtered[bring_col] >= selected_bring_range[0]) & (df_filtered[bring_col] <= selected_bring_range[1])]
 
