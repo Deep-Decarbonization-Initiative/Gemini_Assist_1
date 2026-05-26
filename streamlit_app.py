@@ -14,7 +14,7 @@ Everything below is preliminary and subject to change, with minimal QA/QC done t
 """
 
 # Load local dataset from the repository's datasets folder.
-research_path = Path('data/SP26_userxweek_charging_light.parquet')
+research_path = Path('datasets/data/SP26_userxweek_charging_light.parquet')
 
 if research_path.exists():
     df_research = pd.read_parquet(research_path)
@@ -72,10 +72,11 @@ if df_research is not None:
         else:
             event_rule = None
 
-        st.subheader('Data Options')
-        st.write('Use the week slider and subgroup controls below to adjust the time window and driver groups shown in the figures.')
-
-        # Reverted back to a range slider for continuous weekly timeline view
+        # ------------------ SELECTION CONTROLS CATEGORIES ------------------
+        st.header('Configuration Options')
+        
+        # Category 1: Timeframe Shown
+        st.subheader('1. Timeframe Shown 📅')
         min_week = int(df_research['week'].min())
         max_week = int(df_research['week'].max())
         
@@ -86,11 +87,80 @@ if df_research is not None:
             value=(min_week, max_week)
         )
 
-        # Filter dataset based on slider window range
+        # Category 2: Inclusion Criteria & Disaggregation Fields
+        st.subheader('2. Inclusion Criteria & Filters 🔍')
+        
+        # Dynamic Filters Setup with Robust Fallbacks
+        recency_col = 'lastperiodcharged' if 'lastperiodcharged' in df_research.columns else None
+        energy_col = 'baselinekwhcharged' if 'baselinekwhcharged' in df_research.columns else None
+        freq_col = 'baselinedaysofcharging' if 'baselinedaysofcharging' in df_research.columns else None
+        loc_col = 'charginglocgroup' if 'charginglocgroup' in df_research.columns else None
+        bring_col = 'kwhcouldbringtocampus' if 'kwhcouldbringtocampus' in df_research.columns else None
+
+        f_col1, f_col2 = st.columns(2)
+
+        # Charge Recency (lastperiodcharged)
+        if recency_col:
+            unique_recencies = sorted(df_research[recency_col].dropna().unique().tolist())
+            selected_recencies = f_col1.multiselect("Charge Recency Filter:", options=unique_recencies, default=unique_recencies)
+        else:
+            selected_recencies = None
+
+        # Baseline Energy (baselinekwhcharged)
+        if energy_col:
+            df_research[energy_col] = pd.to_numeric(df_research[energy_col], errors='coerce')
+            min_energy = float(df_research[energy_col].min())
+            max_energy = float(df_research[energy_col].max())
+            selected_energy_range = f_col2.slider("Baseline Energy Range (kWh):", min_energy, max_energy, (min_energy, max_energy))
+        else:
+            selected_energy_range = None
+
+        f_col3, f_col4 = st.columns(2)
+
+        # Baseline Frequency (baselinedaysofcharging)
+        if freq_col:
+            df_research[freq_col] = pd.to_numeric(df_research[freq_col], errors='coerce')
+            min_freq = float(df_research[freq_col].min())
+            max_freq = float(df_research[freq_col].max())
+            selected_freq_range = f_col3.slider("Baseline Frequency Range (Days):", min_freq, max_freq, (min_freq, max_freq))
+        else:
+            selected_freq_range = None
+
+        # Charging Location Group (charginglocgroup)
+        if loc_col:
+            unique_locs = sorted(df_research[loc_col].dropna().unique().tolist())
+            selected_locs = f_col4.multiselect("Charging Location Group:", options=unique_locs, default=unique_locs)
+        else:
+            selected_locs = None
+
+        # kWh Could Bring (kwhcouldbringtocampus)
+        if bring_col:
+            df_research[bring_col] = pd.to_numeric(df_research[bring_col], errors='coerce')
+            min_bring = float(df_research[bring_col].min())
+            max_bring = float(df_research[bring_col].max())
+            selected_bring_range = st.slider("kWh Could Bring to Campus Range:", min_bring, max_bring, (min_bring, max_bring))
+        else:
+            selected_bring_range = None
+
+        # Apply Inclusion/Disaggregation Filters to Dataset
         df_filtered = df_research[
             (df_research['week'] >= selected_week_range[0]) & 
             (df_research['week'] <= selected_week_range[1])
         ].copy()
+
+        if selected_recencies is not None:
+            df_filtered = df_filtered[df_filtered[recency_col].isin(selected_recencies)]
+        if selected_energy_range is not None:
+            df_filtered = df_filtered[(df_filtered[energy_col] >= selected_energy_range[0]) & (df_filtered[energy_col] <= selected_energy_range[1])]
+        if selected_freq_range is not None:
+            df_filtered = df_filtered[(df_filtered[freq_col] >= selected_freq_range[0]) & (df_filtered[freq_col] <= selected_freq_range[1])]
+        if selected_locs is not None:
+            df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
+        if selected_bring_range is not None:
+            df_filtered = df_filtered[(df_filtered[bring_col] >= selected_bring_range[0]) & (df_filtered[bring_col] <= selected_bring_range[1])]
+
+        # Category 3: Subgroup Selection
+        st.subheader('3. Cohorts & Driver Groups 🚗')
 
         # Build total campus session counts by summing attempted sessions per week
         session_counts = (
@@ -103,7 +173,6 @@ if df_research is not None:
         # Reconstruct assignment subgroups
         df_filtered['group'] = 'Other'
         
-        # Identify columns handling assignment statuses flexibly
         assignment_col = 'sp26_assignment' if 'sp26_assignment' in df_filtered.columns else ('assignment' if 'assignment' in df_filtered.columns else None)
         treat_arm_col = 'sp26_treat_arm' if 'sp26_treat_arm' in df_filtered.columns else ('treatment' if 'treatment' in df_filtered.columns else None)
 
@@ -171,6 +240,9 @@ if df_research is not None:
                 if right_selected:
                     selected_subgroups.append(right_label)
 
+        # ------------------ CHARTS & GRAPHICAL VISUALIZATIONS ------------------
+        st.markdown("---")
+
         # --- PLOT 1: Total Campus Sessions ---
         st.subheader('Sessions per Week')
         st.write('This plot shows the number of weekly campus L2 charge sessions associated with drivers assigned to the Offer, Gift, and Control groups. For reference, the initial offer email went out during week 167, while subscription pricing began during week 170.')
@@ -190,7 +262,6 @@ if df_research is not None:
         # --- PLOT 2: Daily Sessions by Subgroup ---
         grouped_sessions = df_filtered[df_filtered['group'].isin(subgroup_options)].copy()
         
-        # Aggregation logic fix: Summing up attempted sessions per group-week
         grouped_counts = (
             grouped_sessions.groupby(['week', 'group'])[sessions_col]
             .sum()
