@@ -69,7 +69,7 @@ if df_research is not None:
         if not event_markers.empty:
             event_markers = event_markers.drop_duplicates(subset=['week'])
             event_rule = alt.Chart(event_markers).mark_rule(color='#4a4a4a', strokeWidth=3, opacity=0.85).encode(
-                x=alt.X('week:Q'),
+                x=alt.X('week:Q', scale=alt.Scale(clamp=True)),
                 tooltip=[alt.Tooltip('event_detail:N', title='Event detail')]
             )
         else:
@@ -107,25 +107,22 @@ if df_research is not None:
         loc_col = 'charginglocgroup' if 'charginglocgroup' in df_research.columns else None
         bring_col = 'kwhcouldbringtocampus' if 'kwhcouldbringtocampus' in df_research.columns else None
 
-        # Grid Column Row 1: Drivetrain & Treatment Group
-        f_row1_col1, f_row1_col2 = st.columns(2)
+        # Displaying criteria sequentially in a single column layout
         if drivetrain_col:
             unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
-            selected_drivetrains = f_row1_col1.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
+            selected_drivetrains = st.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
         else:
             selected_drivetrains = None
 
         if treatment_col:
             unique_treatments = sorted(df_research[treatment_col].dropna().unique().tolist())
-            selected_treatments = f_row1_col2.multiselect("Treatment Group Filter (treatment):", options=unique_treatments, default=unique_treatments)
+            selected_treatments = st.multiselect("Treatment Group Filter (treatment):", options=unique_treatments, default=unique_treatments)
         else:
             selected_treatments = None
 
-        # Grid Column Row 2: Charge Recency & Baseline Energy
-        f_row2_col1, f_row2_col2 = st.columns(2)
         if recency_col:
             unique_recencies = sorted(df_research[recency_col].dropna().unique().tolist())
-            selected_recencies = f_row2_col1.multiselect("Charge Recency Filter:", options=unique_recencies, default=unique_recencies)
+            selected_recencies = st.multiselect("Charge Recency Filter:", options=unique_recencies, default=unique_recencies)
         else:
             selected_recencies = None
 
@@ -133,27 +130,24 @@ if df_research is not None:
             df_research[energy_col] = pd.to_numeric(df_research[energy_col], errors='coerce')
             min_energy = float(df_research[energy_col].min())
             max_energy = float(df_research[energy_col].max())
-            selected_energy_range = f_row2_col2.slider("Baseline Energy Range (kWh):", min_energy, max_energy, (min_energy, max_energy))
+            selected_energy_range = st.slider("Baseline Energy Range (kWh):", min_energy, max_energy, (min_energy, max_energy))
         else:
             selected_energy_range = None
 
-        # Grid Column Row 3: Baseline Frequency & Charging Location Group
-        f_row3_col1, f_row3_col2 = st.columns(2)
         if freq_col:
             df_research[freq_col] = pd.to_numeric(df_research[freq_col], errors='coerce')
             min_freq = float(df_research[freq_col].min())
             max_freq = float(df_research[freq_col].max())
-            selected_freq_range = f_row3_col1.slider("Baseline Frequency Range (Days):", min_freq, max_freq, (min_freq, max_freq))
+            selected_freq_range = st.slider("Baseline Frequency Range (Days):", min_freq, max_freq, (min_freq, max_freq))
         else:
             selected_freq_range = None
 
         if loc_col:
             unique_locs = sorted(df_research[loc_col].dropna().unique().tolist())
-            selected_locs = f_row3_col2.multiselect("Charging Location Group:", options=unique_locs, default=unique_locs)
+            selected_locs = st.multiselect("Charging Location Group:", options=unique_locs, default=unique_locs)
         else:
             selected_locs = None
 
-        # Full Width Slider: kWh Could Bring
         if bring_col:
             df_research[bring_col] = pd.to_numeric(df_research[bring_col], errors='coerce')
             min_bring = float(df_research[bring_col].min())
@@ -167,7 +161,6 @@ if df_research is not None:
         st.subheader('3. Disaggregation Fields 📊')
         st.caption("Select which variables to cross-reference your cohorts by. Selecting none will show aggregate curves.")
         
-        # Map human descriptions to code columns
         disagg_options = {}
         if drivetrain_col: disagg_options["Vehicle Drivetrain (autotypenew)"] = drivetrain_col
         if loc_col:        disagg_options["Charging Location Group"] = loc_col
@@ -217,7 +210,7 @@ if df_research is not None:
             .sort_values('week')
         )
 
-        # 5. Core Experiment Assignment Assignment Base
+        # 5. Core Experiment Assignment Base
         assignment_col = 'sp26_assignment' if 'sp26_assignment' in df_filtered.columns else ('assignment' if 'assignment' in df_filtered.columns else None)
         treat_arm_col = 'sp26_treat_arm' if 'sp26_treat_arm' in df_filtered.columns else ('treatment' if 'treatment' in df_filtered.columns else None)
 
@@ -231,7 +224,6 @@ if df_research is not None:
 
         # 6. Dynamic Group Evaluation Step
         if chosen_disagg_cols:
-            # Safely string-combine columns with a clean spacer tag
             df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1) + ' - ' + df_filtered['experiment_cohort']
         else:
             df_filtered['group'] = df_filtered['experiment_cohort']
@@ -250,7 +242,6 @@ if df_research is not None:
         subgroup_display_labels = {}
 
         for grp in unique_groups_present:
-            # Find which tracking experimental group this string matches
             matched_cohort = 'Control'
             for cohort in cohort_colors.keys():
                 if grp.endswith(cohort):
@@ -258,18 +249,18 @@ if df_research is not None:
                     break
             
             group_color_map[grp] = cohort_colors[matched_cohort]
-            # Dash lines if PHEV properties are explicitly tracked inside the customized group string
             group_dash_map[grp] = [5, 5] if 'PHEV' in grp else []
             
             icon = cohort_icons[matched_cohort]
             line_style = "╌" if 'PHEV' in grp else "─"
             subgroup_display_labels[grp] = f"{icon} {line_style} {grp}"
 
-        # 8. Render Dynamic Group Visibility Subgroup Toggles
-        st.write("#### Active Subgroup Visual Lines Selector:")
+
+        # --- Sub-section 4: Active Subgroups and Legend ---
+        st.subheader('4. Active Subgroups and Legend 🏷️')
+        
         selected_subgroups = []
         if unique_groups_present:
-            # Split toggles across two clean columns for viewport readability
             col_left, col_right = st.columns(2)
             for i, grp in enumerate(unique_groups_present):
                 target_col = col_left if i % 2 == 0 else col_right
@@ -278,17 +269,15 @@ if df_research is not None:
         else:
             st.info("No active cohorts found with current inclusion choices.")
 
-        # 9. Smart Scaling Array Strategy (Fallback calculates sample counts automatically)
+        # 9. Smart Scaling Array Strategy
         scale_map = {
             'BEV - Offer': 921, 'PHEV - Offer': 500,
             'BEV - Gift': 307,  'PHEV - Gift': 173,
             'BEV - Control': 309, 'PHEV - Control': 172,
             'BEV - Enrolled': 143, 'PHEV - Enrolled': 75
         }
-        # Backfill calculation rules if custom cross-referencing values are selected
         for grp in unique_groups_present:
             if grp not in scale_map:
-                # Approximate dynamic baseline sizing using unique driver footprint count
                 driver_count = df_filtered[df_filtered['group'] == grp]['driver'].nunique()
                 scale_map[grp] = driver_count if driver_count > 0 else 1
 
@@ -308,7 +297,8 @@ if df_research is not None:
                 alt.Chart(session_counts)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week'),
+                    # Added interactive scale domains to zoom boundaries tightly 
+                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
                 )
             )
@@ -338,7 +328,7 @@ if df_research is not None:
                 alt.Chart(filtered_group_counts_daily)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week'),
+                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
@@ -359,7 +349,7 @@ if df_research is not None:
                 alt.Chart(scaled_counts)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week'),
+                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
@@ -390,7 +380,7 @@ if df_research is not None:
                 alt.Chart(grouped_kwh)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week'),
+                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
@@ -410,7 +400,7 @@ if df_research is not None:
                 alt.Chart(scaled_kwh)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week'),
+                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh per Capita'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
