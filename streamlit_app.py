@@ -126,14 +126,12 @@ if df_research is not None:
         else:
             selected_recencies = None
 
-        # UPDATED: Baseline Energy Filter (Now Discrete Strings / Multiselect)
         if energy_col:
             unique_energies = sorted(df_research[energy_col].dropna().astype(str).unique().tolist())
             selected_energies = st.multiselect("Baseline Energy Filter (baselinekwhcharged):", options=unique_energies, default=unique_energies)
         else:
             selected_energies = None
 
-        # UPDATED: Baseline Frequency Filter (Now Discrete Strings / Multiselect)
         if freq_col:
             unique_freqs = sorted(df_research[freq_col].dropna().astype(str).unique().tolist())
             selected_freqs = st.multiselect("Baseline Frequency Filter (baselinedaysofcharging):", options=unique_freqs, default=unique_freqs)
@@ -146,7 +144,6 @@ if df_research is not None:
         else:
             selected_locs = None
 
-        # UPDATED: kWh Could Bring Filter (Now Discrete Strings / Multiselect)
         if bring_col:
             unique_brings = sorted(df_research[bring_col].dropna().astype(str).unique().tolist())
             selected_brings = st.multiselect("kWh Could Bring Filter (kwhcouldbringtocampus):", options=unique_brings, default=unique_brings)
@@ -214,8 +211,9 @@ if df_research is not None:
         )
 
         # 5. Clean Dynamic Group Evaluation Logic
+        # FIX: Explicitly forces row-by-row string flattening via lambda to fix DataFrame assignment crashes
         if chosen_disagg_cols:
-            df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1)
+            df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).apply(lambda row: ' - '.join(row), axis=1)
         else:
             df_filtered['group'] = 'All Included Drivers'
 
@@ -230,7 +228,19 @@ if df_research is not None:
         # --- Sub-section 4: Active Subgroups and Legend ---
         st.subheader('4. Active Subgroups and Legend 🏷️')
         
-        palette_pool = ['#D81B60', '#1E88E5', '#004D40', '#E2A61A', '#9C27B0', '#FF5722', '#4CAF50', '#795548', '#607D8B', '#00BCD4']
+        # Colorblind-friendly custom high-contrast categorical palette (e.g., Okabe-Ito / Wong inspired)
+        palette_pool = [
+            '#0072B2',  # Clear Blue
+            '#E69F00',  # Orange
+            '#009E73',  # Bluish Green
+            '#CC79A7',  # Reddish Purple
+            '#F0E442',  # Yellow
+            '#D55E00',  # Vermilion
+            '#56B4E9',  # Sky Blue
+            '#999999',  # Neutral Gray
+            '#491D88',  # Dark Violet
+            '#A6C48A'   # Soft Sage Green
+        ]
         
         group_color_map = {}
         group_dash_map = {}
@@ -263,8 +273,6 @@ if df_research is not None:
 
         # 6. Sample Footprint Count Capacity Dynamic Allocator Engine
         scale_map = {}
-        # NOTE: If your dataset uses a different key name like 'userid' instead of 'driver',
-        # replace the string 'driver' below with your explicit identifier column name.
         driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
         for grp in unique_groups_present:
             driver_count = df_filtered[df_filtered['group'] == grp][driver_col_id].nunique()
