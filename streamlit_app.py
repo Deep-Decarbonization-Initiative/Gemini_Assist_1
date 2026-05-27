@@ -9,7 +9,8 @@ from pathlib import Path
 # ==============================================================================
 st.title("D2I Spring 2026 Subscription Experiment 🚗🔌⚡")
 st.write(
-    "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with the Offer, Gift, and Control groups in the SP26 experiment."
+    "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with the Offer, Gift, and Control groups in the SP26 experiment." \
+    "It does not include any data from non-Triton Charger drivers, nor any data from Triton Chargers who were ineligible for the experiment."
 )
 """
 # Has the subscription experiment reshaped EV charging behavior? 
@@ -66,14 +67,36 @@ if df_research is not None:
             (df_research['event_detail'] != 'nan')
         ].copy()
 
+        # UPDATED: Reconfigured event rule visualization elements
         if not event_markers.empty:
             event_markers = event_markers.drop_duplicates(subset=['week'])
-            event_rule = alt.Chart(event_markers).mark_rule(color='#4a4a4a', strokeWidth=3, opacity=0.85).encode(
-                x=alt.X('week:Q', scale=alt.Scale(clamp=True)),
-                tooltip=[alt.Tooltip('event_detail:N', title='Event detail')]
+            
+            # 1. Thinner, lighter background vertical line rule
+            event_rule = alt.Chart(event_markers).mark_rule(
+                color='#d3d3d3', 
+                strokeWidth=1, 
+                opacity=0.7
+            ).encode(
+                x=alt.X('week:Q', scale=alt.Scale(clamp=True))
+            )
+            
+            # 2. Static text label running vertically from bottom to top
+            event_text = alt.Chart(event_markers).mark_text(
+                align='left',
+                baseline='middle',
+                dx=5,
+                dy=0,
+                angle=270,
+                color='#666666',
+                fontSize=10
+            ).encode(
+                x=alt.X('week:Q'),
+                y=alt.value(270),  # Positioned near the bottom axis, extending upwards
+                text='event_detail:N'
             )
         else:
             event_rule = None
+            event_text = None
 
 
         # ==============================================================================
@@ -81,14 +104,21 @@ if df_research is not None:
         # ==============================================================================
         st.markdown("---")
         st.header('Configuration Settings 🛠️')
+        """
+       The following sections control what data is visualized and how it is disaggregated in the plots that follow.
+       The timescale slider dynamically adjusts the timeframe on the figures. 
+       The Inlcusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., PHEVs, a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
+       The Disaggregation Fields then determine how to group the remaining data (e.g., by drivetrain, treatment group, and/or given covariates).
         
+        """
         # --- Sub-section 1: Timescale ---
         st.subheader('1. Timescale 📅')
         min_week = int(df_research['week'].min())
         max_week = int(df_research['week'].max())
         
         selected_week_range = st.slider(
-            "Select experiment weeks range to display:",
+            "Select range of weeks to display below. These are indexed to January 1st, 2023. " \
+            "For reference, the SP26 experimental offers went out during week 167, discounts began week 170, and discounts will end week 183:",
             min_value=min_week,
             max_value=max_week,
             value=(min_week, max_week)
@@ -110,31 +140,31 @@ if df_research is not None:
         # Displaying criteria sequentially down a single clean vertical column
         if drivetrain_col:
             unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
-            selected_drivetrains = st.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
+            selected_drivetrains = st.multiselect("Drivetrain Filter (BEV, PHEV):", options=unique_drivetrains, default=unique_drivetrains)
         else:
             selected_drivetrains = None
 
         if treatment_col:
             unique_treatments = sorted(df_research[treatment_col].dropna().unique().tolist())
-            selected_treatments = st.multiselect("Treatment Group Filter (treatment):", options=unique_treatments, default=unique_treatments)
+            selected_treatments = st.multiselect("Treatment Group Filter (Note: Left refers to drivers who enrolled but did not pay)):", options=unique_treatments, default=unique_treatments)
         else:
             selected_treatments = None
 
         if recency_col:
             unique_recencies = sorted(df_research[recency_col].dropna().unique().tolist())
-            selected_recencies = st.multiselect("Charge Recency Filter:", options=unique_recencies, default=unique_recencies)
+            selected_recencies = st.multiselect("Charge Recency Filter (Academic year of most recent charge BEFORE experimental assignment):", options=unique_recencies, default=unique_recencies)
         else:
             selected_recencies = None
 
         if energy_col:
             unique_energies = sorted(df_research[energy_col].dropna().astype(str).unique().tolist())
-            selected_energies = st.multiselect("Baseline Energy Filter (baselinekwhcharged):", options=unique_energies, default=unique_energies)
+            selected_energies = st.multiselect("Baseline Energy Filter (kWh charged during AY2526 BEFORE experimental assignment; 0 - None, 1 - Low, 4 - High):", options=unique_energies, default=unique_energies)
         else:
             selected_energies = None
 
         if freq_col:
             unique_freqs = sorted(df_research[freq_col].dropna().astype(str).unique().tolist())
-            selected_freqs = st.multiselect("Baseline Frequency Filter (baselinedaysofcharging):", options=unique_freqs, default=unique_freqs)
+            selected_freqs = st.multiselect("Baseline Frequency Filter (Days with sessions during AY2526 BEFORE experimental assignment; 0 - None, 1 - Low, 4 - High):", options=unique_freqs, default=unique_freqs)
         else:
             selected_freqs = None
 
@@ -146,14 +176,14 @@ if df_research is not None:
 
         if bring_col:
             unique_brings = sorted(df_research[bring_col].dropna().astype(str).unique().tolist())
-            selected_brings = st.multiselect("kWh Could Bring Filter (kwhcouldbringtocampus):", options=unique_brings, default=unique_brings)
+            selected_brings = st.multiselect("kWh Could Bring Filter (1 - Low; 4 - High):", options=unique_brings, default=unique_brings)
         else:
             selected_brings = None
 
 
         # --- Sub-section 3: Disaggregation Fields ---
         st.subheader('3. Disaggregation Fields 📊')
-        st.caption("Select variables to cross-reference cohorts. Selecting none generates aggregate curves.")
+        st.caption("Select variables to define cohorts for visualization. Deselecting all generates aggregate curves.")
         
         # Build option mapping matrix (Maintains compatibility with string formats)
         disagg_options = {}
@@ -211,7 +241,6 @@ if df_research is not None:
         )
 
         # 5. Clean Dynamic Group Evaluation Logic
-        # FIXED: Replacing row-by-row .apply(axis=1) with fully vectorized loop concatenation
         if df_filtered.empty:
             df_filtered['group'] = ''
         elif chosen_disagg_cols and len(chosen_disagg_cols) > 0:
@@ -290,19 +319,22 @@ if df_research is not None:
         st.header('Results & Graphical Insights 📈')
 
         # --- PLOT 1: Total Campus Sessions ---
-        st.subheader('Sessions per Week')
-        
+        st.subheader('Total Sessions per Week')
+        """
+        This plot provides a level-set by showing the total number of sessions per week remaining in the data after applying filters from the Inclusion Criteria section.
+        """
         if not session_counts.empty:
             session_chart = (
                 alt.Chart(session_counts)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
                 )
             )
+            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
-                session_chart = alt.layer(session_chart, event_rule)
+                session_chart = alt.layer(event_rule, session_chart, event_text)
             st.altair_chart(session_chart, use_container_width=True)
         else:
             st.warning("No data rows available to draw total aggregate sessions.")
@@ -326,35 +358,36 @@ if df_research is not None:
                 alt.Chart(filtered_group_counts_daily)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
                 )
             )
+            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
-                grouped_chart = alt.layer(grouped_chart, event_rule)
+                grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
             st.altair_chart(grouped_chart, use_container_width=True)
 
             # --- PLOT 3: Sessions Per Capita ---
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
             
-            # SAFEGUARD: Replacing .apply(axis=1) with optimized, crash-proof mapping vector calculations
             scaled_counts['session_count'] = scaled_counts['session_count'] / scaled_counts['group'].map(scale_map).fillna(1)
             
             scaled_chart = (
                 alt.Chart(scaled_counts)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
                 )
             )
+            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
-                scaled_chart = alt.layer(scaled_chart, event_rule)
+                scaled_chart = alt.layer(event_rule, scaled_chart, event_text)
             st.altair_chart(scaled_chart, use_container_width=True)
         else:
             st.info("Check one or more subgroups above to view cohort line comparison charts.")
@@ -378,34 +411,35 @@ if df_research is not None:
                 alt.Chart(grouped_kwh)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
                 )
             )
+            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
-                kwh_chart = alt.layer(kwh_chart, event_rule)
+                kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
             st.altair_chart(kwh_chart, use_container_width=True)
 
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
             
-            # SAFEGUARD: Vectorized mapping
             scaled_kwh['kwh_sum'] = scaled_kwh['kwh_sum'] / scaled_kwh['group'].map(scale_map).fillna(1)
             
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh per Capita'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
                 )
             )
+            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
-                scaled_kwh_chart = alt.layer(scaled_kwh_chart, event_rule)
+                scaled_kwh_chart = alt.layer(event_rule, scaled_kwh_chart, event_text)
             st.altair_chart(scaled_kwh_chart, use_container_width=True)
         elif not kwh_col:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
@@ -422,7 +456,6 @@ if df_research is not None:
                     .reset_index()
                     .sort_values('group')
                 )
-                # SAFEGUARD: Vectorized mapping
                 kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(scale_map).fillna(1)
                 
                 st.subheader('Total kWh per Capita by Subgroup (Since Week 167)')
@@ -450,7 +483,6 @@ if df_research is not None:
                 )
                 st.subheader('Total Session Duration per Capita by Subgroup (Since Week 167)')
                 
-                # SAFEGUARD: Vectorized mapping
                 session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(scale_map).fillna(1)
                 
                 session_duration_chart = (
@@ -476,7 +508,6 @@ if df_research is not None:
                 )
                 st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 167)')
                 
-                # SAFEGUARD: Vectorized mapping
                 charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(scale_map).fillna(1)
                 
                 charging_duration_chart = (
