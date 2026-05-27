@@ -211,8 +211,10 @@ if df_research is not None:
         )
 
         # 5. Clean Dynamic Group Evaluation Logic
-        # FIXED: Explicitly applies row-by-row string flattening using .apply() to completely prevent multi-column crashes
-        if chosen_disagg_cols and len(chosen_disagg_cols) > 0:
+        # SAFEGUARD: Short-circuit logic if the filtered dataframe contains zero rows
+        if df_filtered.empty:
+            df_filtered['group'] = ''
+        elif chosen_disagg_cols and len(chosen_disagg_cols) > 0:
             df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).apply(lambda row: ' - '.join(row), axis=1)
         else:
             df_filtered['group'] = 'All Included Drivers'
@@ -335,10 +337,10 @@ if df_research is not None:
             # --- PLOT 3: Sessions Per Capita ---
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
-            scaled_counts['session_count'] = scaled_counts.apply(
-                lambda row: row['session_count'] / scale_map.get(row['group'], 1),
-                axis=1
-            )
+            
+            # SAFEGUARD: Replacing .apply(axis=1) with optimized, crash-proof mapping vector calculations
+            scaled_counts['session_count'] = scaled_counts['session_count'] / scaled_counts['group'].map(scale_map).fillna(1)
+            
             scaled_chart = (
                 alt.Chart(scaled_counts)
                 .mark_line(point=True)
@@ -386,10 +388,10 @@ if df_research is not None:
 
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
-            scaled_kwh['kwh_sum'] = scaled_kwh.apply(
-                lambda row: row['kwh_sum'] / scale_map.get(row['group'], 1),
-                axis=1
-            )
+            
+            # SAFEGUARD: Vectorized mapping
+            scaled_kwh['kwh_sum'] = scaled_kwh['kwh_sum'] / scaled_kwh['group'].map(scale_map).fillna(1)
+            
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
                 .mark_line(point=True)
@@ -418,10 +420,9 @@ if df_research is not None:
                     .reset_index()
                     .sort_values('group')
                 )
-                kwh_totals['total_kwh'] = kwh_totals.apply(
-                    lambda row: row['total_kwh'] / scale_map.get(row['group'], 1),
-                    axis=1
-                )
+                # SAFEGUARD: Vectorized mapping
+                kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(scale_map).fillna(1)
+                
                 st.subheader('Total kWh per Capita by Subgroup (Since Week 167)')
                 kwh_totals_chart = (
                     alt.Chart(kwh_totals)
@@ -446,10 +447,10 @@ if df_research is not None:
                     .sort_values('group')
                 )
                 st.subheader('Total Session Duration per Capita by Subgroup (Since Week 167)')
-                session_duration_totals['total_session_duration'] = session_duration_totals.apply(
-                    lambda row: row['total_session_duration'] / scale_map.get(row['group'], 1),
-                    axis=1
-                )
+                
+                # SAFEGUARD: Vectorized mapping
+                session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(scale_map).fillna(1)
+                
                 session_duration_chart = (
                     alt.Chart(session_duration_totals)
                     .mark_bar()
@@ -472,10 +473,10 @@ if df_research is not None:
                     .sort_values('group')
                 )
                 st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 167)')
-                charging_duration_totals['total_charging_duration'] = charging_duration_totals.apply(
-                    lambda row: row['total_charging_duration'] / scale_map.get(row['group'], 1),
-                    axis=1
-                )
+                
+                # SAFEGUARD: Vectorized mapping
+                charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(scale_map).fillna(1)
+                
                 charging_duration_chart = (
                     alt.Chart(charging_duration_totals)
                     .mark_bar()
