@@ -67,15 +67,16 @@ if df_research is not None:
             (df_research['event_detail'] != 'nan')
         ].copy()
 
-        # UPDATED: Reconfigured event rule visualization elements
+        # Event rule visualization configurations (Dotted + 0.9 Opacity)
         if not event_markers.empty:
             event_markers = event_markers.drop_duplicates(subset=['week'])
             
-            # 1. Thinner, lighter background vertical line rule
+            # 1. Thinner, background vertical dotted line rule
             event_rule = alt.Chart(event_markers).mark_rule(
                 color='#808080', 
                 strokeWidth=1, 
-                opacity=0.5
+                strokeDash=[2, 2],
+                opacity=0.9
             ).encode(
                 x=alt.X('week:Q', scale=alt.Scale(clamp=True))
             )
@@ -107,7 +108,7 @@ if df_research is not None:
         """
        The following sections control what data is visualized and how it is disaggregated in the plots that follow.
        The timescale slider dynamically adjusts the timeframe on the figures. 
-       The Inlcusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., PHEVs, a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
+       The Inclusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., PHEVs, a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
        The Disaggregation Fields then determine how to group the remaining data (e.g., by drivetrain, treatment group, and/or given covariates).
         
         """
@@ -124,8 +125,11 @@ if df_research is not None:
             value=(min_week, max_week)
         )
 
+        # Event Visibility Toggle Checkbox (Defaulted to True)
+        show_events = st.checkbox("Display event dates.", value=True)
+
         # --- Sub-section 2: Inclusion Criteria ---
-        st.subheader('2. Inclusion Criteria 🔍')
+        st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
         st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
         
         # Mapping base tracking metrics explicitly
@@ -318,6 +322,11 @@ if df_research is not None:
         st.markdown("---")
         st.header('Results & Graphical Insights 📈')
 
+        # Enforce checkbox configuration toggle rules
+        if not show_events:
+            event_rule = None
+            event_text = None
+
         # --- PLOT 1: Total Campus Sessions ---
         st.subheader('Total Sessions per Week')
         """
@@ -332,16 +341,18 @@ if df_research is not None:
                     y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
                 )
             )
-            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
                 session_chart = alt.layer(event_rule, session_chart, event_text)
             st.altair_chart(session_chart, use_container_width=True)
         else:
             st.warning("No data rows available to draw total aggregate sessions.")
 
+
         # --- PLOT 2: Daily Sessions by Subgroup ---
         st.subheader('Daily Sessions By Group')
-        
+        """
+        This plot, hidden by default, shows daily sessions by subgroup but does not normalize by group size.
+        """
         if selected_subgroups:
             grouped_counts = (
                 df_filtered[df_filtered['group'].isin(selected_subgroups)]
@@ -351,23 +362,25 @@ if df_research is not None:
                 .sort_values(['group', 'week'])
             )
             
-            filtered_group_counts_daily = grouped_counts.copy()
-            filtered_group_counts_daily['session_count'] = filtered_group_counts_daily['session_count'] / 7.0
+            # UPDATED: Replaced explicit plot generation with visibility checkbox control
+            show_daily_sessions = st.checkbox("Show Total Daily Sessions By Group", value=False)
+            if show_daily_sessions:
+                filtered_group_counts_daily = grouped_counts.copy()
+                filtered_group_counts_daily['session_count'] = filtered_group_counts_daily['session_count'] / 7.0
 
-            grouped_chart = (
-                alt.Chart(filtered_group_counts_daily)
-                .mark_line(point=True)
-                .encode(
-                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                    y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
-                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                grouped_chart = (
+                    alt.Chart(filtered_group_counts_daily)
+                    .mark_line(point=True)
+                    .encode(
+                        x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                        y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
+                        color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
+                        strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                    )
                 )
-            )
-            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
-            if event_rule is not None:
-                grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
-            st.altair_chart(grouped_chart, use_container_width=True)
+                if event_rule is not None:
+                    grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
+                st.altair_chart(grouped_chart, use_container_width=True)
 
             # --- PLOT 3: Sessions Per Capita ---
             st.subheader('Sessions per Capita per Week by Group')
@@ -385,12 +398,12 @@ if df_research is not None:
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
                 )
             )
-            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
                 scaled_chart = alt.layer(event_rule, scaled_chart, event_text)
             st.altair_chart(scaled_chart, use_container_width=True)
         else:
             st.info("Check one or more subgroups above to view cohort line comparison charts.")
+
 
         # --- PLOTS 4 & 5: Energy Delivery (kWh) ---
         kwh_col = 'kwh_sum' if 'kwh_sum' in df_filtered.columns else ('energy' if 'energy' in df_filtered.columns else None)
@@ -407,20 +420,26 @@ if df_research is not None:
             )
             
             st.subheader('Weekly kWh by Group')
-            kwh_chart = (
-                alt.Chart(grouped_kwh)
-                .mark_line(point=True)
-                .encode(
-                    x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                    y=alt.Y('kwh_sum:Q', title='Weekly kWh'),
-                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+            
+            # UPDATED: Replaced explicit plot generation with visibility checkbox control
+            show_weekly_kwh = st.checkbox("Show Total Weekly kWh by Group", value=False)
+            """
+            This plot, hidden by default, shows weekly kWh by subgroup but does not normalize by group size.
+            """
+            if show_weekly_kwh:
+                kwh_chart = (
+                    alt.Chart(grouped_kwh)
+                    .mark_line(point=True)
+                    .encode(
+                        x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                        y=alt.Y('kwh_sum:Q', title='Weekly kWh'),
+                        color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
+                        strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                    )
                 )
-            )
-            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
-            if event_rule is not None:
-                kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
-            st.altair_chart(kwh_chart, use_container_width=True)
+                if event_rule is not None:
+                    kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
+                st.altair_chart(kwh_chart, use_container_width=True)
 
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
@@ -437,12 +456,12 @@ if df_research is not None:
                     strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
                 )
             )
-            # UPDATED: Layering order changed to place grey lines behind data, and labels on top
             if event_rule is not None:
                 scaled_kwh_chart = alt.layer(event_rule, scaled_kwh_chart, event_text)
             st.altair_chart(scaled_kwh_chart, use_container_width=True)
         elif not kwh_col:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
+
 
         # --- SUMMARY STATISTICS (POST WEEK 167) ---
         summary_since_week167 = df_filtered[(df_filtered['week'] >= 167) & (df_filtered['group'].isin(selected_subgroups))].copy()
