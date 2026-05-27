@@ -17,7 +17,7 @@ Everything below is preliminary and subject to change, with minimal QA/QC done t
 """
 
 # Load local dataset from the repository's datasets folder.
-research_path = Path('data/SP26_userxweek_charging_light_27may26.parquet')
+research_path = Path('data/SP26_userxweek_charging_light.parquet')
 
 if research_path.exists():
     df_research = pd.read_parquet(research_path)
@@ -107,6 +107,7 @@ if df_research is not None:
         loc_col = 'charginglocgroup' if 'charginglocgroup' in df_research.columns else None
         bring_col = 'kwhcouldbringtocampus' if 'kwhcouldbringtocampus' in df_research.columns else None
 
+        # Displaying criteria sequentially down a single clean vertical column
         if drivetrain_col:
             unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
             selected_drivetrains = st.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
@@ -125,21 +126,19 @@ if df_research is not None:
         else:
             selected_recencies = None
 
+        # UPDATED: Baseline Energy Filter (Now Discrete Strings / Multiselect)
         if energy_col:
-            df_research[energy_col] = pd.to_numeric(df_research[energy_col], errors='coerce')
-            min_energy = float(df_research[energy_col].min())
-            max_energy = float(df_research[energy_col].max())
-            selected_energy_range = st.slider("Baseline Energy Range (kWh):", min_energy, max_energy, (min_energy, max_energy))
+            unique_energies = sorted(df_research[energy_col].dropna().astype(str).unique().tolist())
+            selected_energies = st.multiselect("Baseline Energy Filter (baselinekwhcharged):", options=unique_energies, default=unique_energies)
         else:
-            selected_energy_range = None
+            selected_energies = None
 
+        # UPDATED: Baseline Frequency Filter (Now Discrete Strings / Multiselect)
         if freq_col:
-            df_research[freq_col] = pd.to_numeric(df_research[freq_col], errors='coerce')
-            min_freq = float(df_research[freq_col].min())
-            max_freq = float(df_research[freq_col].max())
-            selected_freq_range = st.slider("Baseline Frequency Range (Days):", min_freq, max_freq, (min_freq, max_freq))
+            unique_freqs = sorted(df_research[freq_col].dropna().astype(str).unique().tolist())
+            selected_freqs = st.multiselect("Baseline Frequency Filter (baselinedaysofcharging):", options=unique_freqs, default=unique_freqs)
         else:
-            selected_freq_range = None
+            selected_freqs = None
 
         if loc_col:
             unique_locs = sorted(df_research[loc_col].dropna().unique().tolist())
@@ -147,20 +146,19 @@ if df_research is not None:
         else:
             selected_locs = None
 
+        # UPDATED: kWh Could Bring Filter (Now Discrete Strings / Multiselect)
         if bring_col:
-            df_research[bring_col] = pd.to_numeric(df_research[bring_col], errors='coerce')
-            min_bring = float(df_research[bring_col].min())
-            max_bring = float(df_research[bring_col].max())
-            selected_bring_range = st.slider("kWh Could Bring to Campus Range:", min_bring, max_bring, (min_bring, max_bring))
+            unique_brings = sorted(df_research[bring_col].dropna().astype(str).unique().tolist())
+            selected_brings = st.multiselect("kWh Could Bring Filter (kwhcouldbringtocampus):", options=unique_brings, default=unique_brings)
         else:
-            selected_bring_range = None
+            selected_brings = None
 
 
         # --- Sub-section 3: Disaggregation Fields ---
         st.subheader('3. Disaggregation Fields 📊')
         st.caption("Select variables to cross-reference cohorts. Selecting none generates aggregate curves.")
         
-        # Build comprehensive option mapping matrix
+        # Build option mapping matrix (Maintains compatibility with string formats)
         disagg_options = {}
         if treatment_col: disagg_options["Treatment"] = treatment_col
         if drivetrain_col: disagg_options["Vehicle Drivetrain"] = drivetrain_col
@@ -169,7 +167,6 @@ if df_research is not None:
         if bring_col:      disagg_options["kWh Could Bring"] = bring_col
         if loc_col:        disagg_options["Charging Location"] = loc_col
 
-        # Define custom active default options explicitly requested
         default_selections = []
         if "Treatment" in disagg_options: default_selections.append("Treatment")
         if "Vehicle Drivetrain" in disagg_options: default_selections.append("Vehicle Drivetrain")
@@ -192,23 +189,21 @@ if df_research is not None:
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
-        # 2. Apply Categorical Filters
+        # 2. Apply Inclusion Criteria Categorical Filters (Updated with categorical string support)
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
         if selected_treatments is not None:
             df_filtered = df_filtered[df_filtered[treatment_col].isin(selected_treatments)]
         if selected_recencies is not None:
             df_filtered = df_filtered[df_filtered[recency_col].isin(selected_recencies)]
+        if selected_energies is not None:
+            df_filtered = df_filtered[df_filtered[energy_col].astype(str).isin(selected_energies)]
+        if selected_freqs is not None:
+            df_filtered = df_filtered[df_filtered[freq_col].astype(str).isin(selected_freqs)]
         if selected_locs is not None:
             df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
-            
-        # 3. Apply Continuous Slider Range Bounds
-        if selected_energy_range is not None:
-            df_filtered = df_filtered[(df_filtered[energy_col] >= selected_energy_range[0]) & (df_filtered[energy_col] <= selected_energy_range[1])]
-        if selected_freq_range is not None:
-            df_filtered = df_filtered[(df_filtered[freq_col] >= selected_freq_range[0]) & (df_filtered[freq_col] <= selected_freq_range[1])]
-        if selected_bring_range is not None:
-            df_filtered = df_filtered[(df_filtered[bring_col] >= selected_bring_range[0]) & (df_filtered[bring_col] <= selected_bring_range[1])]
+        if selected_brings is not None:
+            df_filtered = df_filtered[df_filtered[bring_col].astype(str).isin(selected_brings)]
 
         # 4. Generate Core Campus Metrics Baseline
         session_counts = (
@@ -220,23 +215,21 @@ if df_research is not None:
 
         # 5. Clean Dynamic Group Evaluation Logic
         if chosen_disagg_cols:
-            # Safely transform combinations to standard strings sequentially, joining with spaces
             df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1)
         else:
             df_filtered['group'] = 'All Included Drivers'
 
-        # Filter out unassigned, empty string null values or residual records 
+        # Filter out unassigned or residual records
         df_filtered = df_filtered[df_filtered['group'] != '']
         df_filtered = df_filtered[~df_filtered['group'].str.lower().str.contains('excluded')]
 
-        # Discover unique groups containing at least one real matching driver-week record
+        # Discover unique groups containing at least one real matching record
         unique_groups_present = sorted(df_filtered['group'].unique().tolist())
 
 
         # --- Sub-section 4: Active Subgroups and Legend ---
         st.subheader('4. Active Subgroups and Legend 🏷️')
         
-        # Color mapping pool across generic color definitions
         palette_pool = ['#D81B60', '#1E88E5', '#004D40', '#E2A61A', '#9C27B0', '#FF5722', '#4CAF50', '#795548', '#607D8B', '#00BCD4']
         
         group_color_map = {}
@@ -244,14 +237,11 @@ if df_research is not None:
         subgroup_display_labels = {}
 
         for idx, grp in enumerate(unique_groups_present):
-            # Dynamic assignment preventing key assignment index exceptions
             color_index = idx % len(palette_pool)
             group_color_map[grp] = palette_pool[color_index]
             
-            # Line stroke configuration logic depending on presence of string tags
             group_dash_map[grp] = [5, 5] if 'phev' in grp.lower() else []
             
-            # Pick contextual icons dynamically based on group contents
             icon = "⚪"
             if "control" in grp.lower(): icon = "🔴"
             elif "gift" in grp.lower(): icon = "🔵"
@@ -273,8 +263,11 @@ if df_research is not None:
 
         # 6. Sample Footprint Count Capacity Dynamic Allocator Engine
         scale_map = {}
+        # NOTE: If your dataset uses a different key name like 'userid' instead of 'driver',
+        # replace the string 'driver' below with your explicit identifier column name.
+        driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
         for grp in unique_groups_present:
-            driver_count = df_filtered[df_filtered['group'] == grp]['driver_id'].nunique()
+            driver_count = df_filtered[df_filtered['group'] == grp][driver_col_id].nunique()
             scale_map[grp] = driver_count if driver_count > 0 else 1
 
 
@@ -286,7 +279,6 @@ if df_research is not None:
 
         # --- PLOT 1: Total Campus Sessions ---
         st.subheader('Sessions per Week')
-        st.write('This plot shows the number of weekly campus L2 charge sessions associated with drivers assigned to the Offer, Gift, and Control groups. For reference, the initial offer email went out during week 167, while subscription pricing began during week 170.')
         
         if not session_counts.empty:
             session_chart = (
@@ -305,7 +297,6 @@ if df_research is not None:
 
         # --- PLOT 2: Daily Sessions by Subgroup ---
         st.subheader('Daily Sessions By Group')
-        st.caption('Displaying weekly averages of summed attempted sessions')
         
         if selected_subgroups:
             grouped_counts = (
