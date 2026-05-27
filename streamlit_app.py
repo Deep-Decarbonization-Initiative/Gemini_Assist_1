@@ -98,7 +98,7 @@ if df_research is not None:
         st.subheader('2. Inclusion Criteria 🔍')
         st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
         
-        # Define field/column assignments with robust fallback names (Updated to exclusively use treatment)
+        # Mapping base tracking metrics explicitly
         drivetrain_col = 'autotypenew' if 'autotypenew' in df_research.columns else None
         treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         recency_col = 'lastperiodcharged' if 'lastperiodcharged' in df_research.columns else None
@@ -107,7 +107,6 @@ if df_research is not None:
         loc_col = 'charginglocgroup' if 'charginglocgroup' in df_research.columns else None
         bring_col = 'kwhcouldbringtocampus' if 'kwhcouldbringtocampus' in df_research.columns else None
 
-        # Displaying criteria sequentially down a single clean vertical column
         if drivetrain_col:
             unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
             selected_drivetrains = st.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
@@ -159,17 +158,26 @@ if df_research is not None:
 
         # --- Sub-section 3: Disaggregation Fields ---
         st.subheader('3. Disaggregation Fields 📊')
-        st.caption("Select which variables to cross-reference your cohorts by. Selecting none will show aggregate curves.")
+        st.caption("Select variables to cross-reference cohorts. Selecting none generates aggregate curves.")
         
+        # Build comprehensive option mapping matrix
         disagg_options = {}
-        if drivetrain_col: disagg_options["Vehicle Drivetrain (autotypenew)"] = drivetrain_col
-        if loc_col:        disagg_options["Charging Location Group"] = loc_col
+        if treatment_col: disagg_options["Treatment"] = treatment_col
+        if drivetrain_col: disagg_options["Vehicle Drivetrain"] = drivetrain_col
         if recency_col:    disagg_options["Recency Status"] = recency_col
+        if energy_col:     disagg_options["Baseline Energy"] = energy_col
+        if bring_col:      disagg_options["kWh Could Bring"] = bring_col
+        if loc_col:        disagg_options["Charging Location"] = loc_col
+
+        # Define custom active default options explicitly requested
+        default_selections = []
+        if "Treatment" in disagg_options: default_selections.append("Treatment")
+        if "Vehicle Drivetrain" in disagg_options: default_selections.append("Vehicle Drivetrain")
 
         selected_disagg_labels = st.multiselect(
             "Disaggregate cohorts by:",
             options=list(disagg_options.keys()),
-            default=["Vehicle Drivetrain (autotypenew)"] if drivetrain_col in disagg_options.values() else []
+            default=default_selections
         )
         chosen_disagg_cols = [disagg_options[label] for label in selected_disagg_labels]
 
@@ -178,13 +186,13 @@ if df_research is not None:
         # DATA PROCESSING PIPELINE
         # ==============================================================================
         
-        # 1. Apply Timescale Filter
+        # 1. Apply Timescale Filter Boundary Range
         df_filtered = df_research[
             (df_research['week'] >= selected_week_range[0]) & 
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
-        # 2. Apply Categorical Inclusion Criteria Filters
+        # 2. Apply Categorical Filters
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
         if selected_treatments is not None:
@@ -194,7 +202,7 @@ if df_research is not None:
         if selected_locs is not None:
             df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
             
-        # 3. Apply Continuous Inclusion Criteria Filters
+        # 3. Apply Continuous Slider Range Bounds
         if selected_energy_range is not None:
             df_filtered = df_filtered[(df_filtered[energy_col] >= selected_energy_range[0]) & (df_filtered[energy_col] <= selected_energy_range[1])]
         if selected_freq_range is not None:
@@ -202,7 +210,7 @@ if df_research is not None:
         if selected_bring_range is not None:
             df_filtered = df_filtered[(df_filtered[bring_col] >= selected_bring_range[0]) & (df_filtered[bring_col] <= selected_bring_range[1])]
 
-        # 4. Generate Total Campus Counts Baseline
+        # 4. Generate Core Campus Metrics Baseline
         session_counts = (
             df_filtered.groupby('week')[sessions_col]
             .sum()
@@ -210,55 +218,49 @@ if df_research is not None:
             .sort_values('week')
         )
 
-        # 5. Core Experiment Cohort Isolation Logic (Cleanly mapping treatment field values case-insensitively)
-        df_filtered['experiment_cohort'] = 'Other'
-        if treatment_col:
-            # Normalize to string to safeguard lookups
-            treat_series = df_filtered[treatment_col].astype(str).str.strip().str.lower()
-            
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series == 'control'), 'experiment_cohort'] = 'control'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series == 'gift'), 'experiment_cohort'] = 'gift'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series.str.startswith('offer')), 'experiment_cohort'] = 'offer'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series.str.startswith('enrolled')), 'experiment_cohort'] = 'enrolled'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series == 'excluded'), 'experiment_cohort'] = 'excluded'
-
-        # 6. Dynamic Group Assembly Stage
+        # 5. Clean Dynamic Group Evaluation Logic
         if chosen_disagg_cols:
-            df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1) + ' - ' + df_filtered['experiment_cohort']
+            # Safely transform combinations to standard strings sequentially, joining with spaces
+            df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1)
         else:
-            df_filtered['group'] = df_filtered['experiment_cohort']
+            df_filtered['group'] = 'All Included Drivers'
 
-        # Discard unassigned entries or exclusions
-        df_filtered = df_filtered[~df_filtered['group'].str.endswith('Other') & ~df_filtered['group'].str.endswith('excluded')]
+        # Filter out unassigned, empty string null values or residual records 
+        df_filtered = df_filtered[df_filtered['group'] != '']
+        df_filtered = df_filtered[~df_filtered['group'].str.lower().str.contains('excluded')]
 
-        # 7. Dynamic Aesthetic Engine (Prevents chart failure by mapping strings on-the-fly)
+        # Discover unique groups containing at least one real matching driver-week record
         unique_groups_present = sorted(df_filtered['group'].unique().tolist())
-        
-        cohort_colors = {'control': '#D81B60', 'gift': '#1E88E5', 'offer': '#004D40', 'enrolled': '#E2A61A'}
-        cohort_icons = {'control': '🔴', 'gift': '🔵', 'offer': '🟢', 'enrolled': '🟡'}
-        
-        group_color_map = {}
-        group_dash_map = {}
-        subgroup_display_labels = {}
-
-        for grp in unique_groups_present:
-            matched_cohort = 'control'
-            for cohort in cohort_colors.keys():
-                if grp.endswith(cohort):
-                    matched_cohort = cohort
-                    break
-            
-            group_color_map[grp] = cohort_colors[matched_cohort]
-            group_dash_map[grp] = [5, 5] if 'PHEV' in grp else []
-            
-            icon = cohort_icons[matched_cohort]
-            line_style = "╌" if 'PHEV' in grp else "─"
-            subgroup_display_labels[grp] = f"{icon} {line_style} {grp}"
 
 
         # --- Sub-section 4: Active Subgroups and Legend ---
         st.subheader('4. Active Subgroups and Legend 🏷️')
         
+        # Color mapping pool across generic color definitions
+        palette_pool = ['#D81B60', '#1E88E5', '#004D40', '#E2A61A', '#9C27B0', '#FF5722', '#4CAF50', '#795548', '#607D8B', '#00BCD4']
+        
+        group_color_map = {}
+        group_dash_map = {}
+        subgroup_display_labels = {}
+
+        for idx, grp in enumerate(unique_groups_present):
+            # Dynamic assignment preventing key assignment index exceptions
+            color_index = idx % len(palette_pool)
+            group_color_map[grp] = palette_pool[color_index]
+            
+            # Line stroke configuration logic depending on presence of string tags
+            group_dash_map[grp] = [5, 5] if 'phev' in grp.lower() else []
+            
+            # Pick contextual icons dynamically based on group contents
+            icon = "⚪"
+            if "control" in grp.lower(): icon = "🔴"
+            elif "gift" in grp.lower(): icon = "🔵"
+            elif "offer" in grp.lower(): icon = "🟢"
+            elif "enrolled" in grp.lower(): icon = "🟡"
+
+            line_style = "╌" if 'phev' in grp.lower() else "─"
+            subgroup_display_labels[grp] = f"{icon} {line_style} {grp}"
+
         selected_subgroups = []
         if unique_groups_present:
             col_left, col_right = st.columns(2)
@@ -267,19 +269,13 @@ if df_research is not None:
                 if target_col.checkbox(subgroup_display_labels[grp], value=True):
                     selected_subgroups.append(grp)
         else:
-            st.info("No active cohorts found with current inclusion choices.")
+            st.info("No active cohorts found with current configuration choices.")
 
-        # 9. Adaptive Capacity Scaling Engine
-        scale_map = {
-            'BEV - offer': 921, 'PHEV - offer': 500,
-            'BEV - gift': 307,  'PHEV - gift': 173,
-            'BEV - control': 309, 'PHEV - control': 172,
-            'BEV - enrolled': 143, 'PHEV - enrolled': 75
-        }
+        # 6. Sample Footprint Count Capacity Dynamic Allocator Engine
+        scale_map = {}
         for grp in unique_groups_present:
-            if grp not in scale_map:
-                driver_count = df_filtered[df_filtered['group'] == grp]['driver'].nunique()
-                scale_map[grp] = driver_count if driver_count > 0 else 1
+            driver_count = df_filtered[df_filtered['group'] == grp]['driver'].nunique()
+            scale_map[grp] = driver_count if driver_count > 0 else 1
 
 
         # ==============================================================================
