@@ -4,6 +4,9 @@ import pandas as pd
 import altair as alt
 from pathlib import Path
 
+# ==============================================================================
+# HEADER SECTION
+# ==============================================================================
 st.title("D2I Spring 2026 Subscription Experiment 🚗🔌⚡")
 st.write(
     "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with the Offer, Gift, and Control groups in the SP26 experiment."
@@ -72,11 +75,15 @@ if df_research is not None:
         else:
             event_rule = None
 
-        # ------------------ SELECTION CONTROLS CATEGORIES ------------------
-        st.header('Configuration Options')
+
+        # ==============================================================================
+        # SETTINGS SECTION
+        # ==============================================================================
+        st.markdown("---")
+        st.header('Configuration Settings 🛠️')
         
-        # Category 1: Timeframe Shown
-        st.subheader('1. Timeframe Shown 📅')
+        # --- Sub-section 1: Timescale ---
+        st.subheader('1. Timescale 📅')
         min_week = int(df_research['week'].min())
         max_week = int(df_research['week'].max())
         
@@ -87,8 +94,9 @@ if df_research is not None:
             value=(min_week, max_week)
         )
 
-        # Category 2: Inclusion Criteria & Disaggregation Fields
-        st.subheader('2. Inclusion Criteria & Filters 🔍')
+        # --- Sub-section 2: Inclusion Criteria ---
+        st.subheader('2. Inclusion Criteria 🔍')
+        st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
         
         # Define field/column assignments with robust fallback names
         drivetrain_col = 'autotypenew' if 'autotypenew' in df_research.columns else None
@@ -101,7 +109,6 @@ if df_research is not None:
 
         # Grid Column Row 1: Drivetrain & Treatment Group
         f_row1_col1, f_row1_col2 = st.columns(2)
-        
         if drivetrain_col:
             unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
             selected_drivetrains = f_row1_col1.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
@@ -116,7 +123,6 @@ if df_research is not None:
 
         # Grid Column Row 2: Charge Recency & Baseline Energy
         f_row2_col1, f_row2_col2 = st.columns(2)
-
         if recency_col:
             unique_recencies = sorted(df_research[recency_col].dropna().unique().tolist())
             selected_recencies = f_row2_col1.multiselect("Charge Recency Filter:", options=unique_recencies, default=unique_recencies)
@@ -133,7 +139,6 @@ if df_research is not None:
 
         # Grid Column Row 3: Baseline Frequency & Charging Location Group
         f_row3_col1, f_row3_col2 = st.columns(2)
-
         if freq_col:
             df_research[freq_col] = pd.to_numeric(df_research[freq_col], errors='coerce')
             min_freq = float(df_research[freq_col].min())
@@ -157,13 +162,36 @@ if df_research is not None:
         else:
             selected_bring_range = None
 
-        # Apply Timescale & Inclusion/Disaggregation Filters to Dataset
+
+        # --- Sub-section 3: Disaggregation Fields ---
+        st.subheader('3. Disaggregation Fields 📊')
+        st.caption("Select which variables to cross-reference your cohorts by. Selecting none will show aggregate curves.")
+        
+        # Map human descriptions to code columns
+        disagg_options = {}
+        if drivetrain_col: disagg_options["Vehicle Drivetrain (autotypenew)"] = drivetrain_col
+        if loc_col:        disagg_options["Charging Location Group"] = loc_col
+        if recency_col:    disagg_options["Recency Status"] = recency_col
+
+        selected_disagg_labels = st.multiselect(
+            "Disaggregate cohorts by:",
+            options=list(disagg_options.keys()),
+            default=["Vehicle Drivetrain (autotypenew)"] if drivetrain_col in disagg_options.values() else []
+        )
+        chosen_disagg_cols = [disagg_options[label] for label in selected_disagg_labels]
+
+
+        # ==============================================================================
+        # DATA PROCESSING PIPELINE
+        # ==============================================================================
+        
+        # 1. Apply Timescale Filter
         df_filtered = df_research[
             (df_research['week'] >= selected_week_range[0]) & 
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
-        # Strict categorical filter exclusion logic
+        # 2. Apply Categorical Inclusion Criteria Filters
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
         if selected_treatments is not None:
@@ -173,7 +201,7 @@ if df_research is not None:
         if selected_locs is not None:
             df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
             
-        # Continuous ranges
+        # 3. Apply Continuous Inclusion Criteria Filters
         if selected_energy_range is not None:
             df_filtered = df_filtered[(df_filtered[energy_col] >= selected_energy_range[0]) & (df_filtered[energy_col] <= selected_energy_range[1])]
         if selected_freq_range is not None:
@@ -181,10 +209,7 @@ if df_research is not None:
         if selected_bring_range is not None:
             df_filtered = df_filtered[(df_filtered[bring_col] >= selected_bring_range[0]) & (df_filtered[bring_col] <= selected_bring_range[1])]
 
-        # Category 3: Subgroup Selection
-        st.subheader('3. Cohorts & Driver Groups 🚗')
-
-        # Build total campus session counts by summing attempted sessions per week
+        # 4. Generate Total Campus Counts Baseline
         session_counts = (
             df_filtered.groupby('week')[sessions_col]
             .sum()
@@ -192,171 +217,177 @@ if df_research is not None:
             .sort_values('week')
         )
 
-        # Reconstruct assignment subgroups
-        df_filtered['group'] = 'Other'
-        
+        # 5. Core Experiment Assignment Assignment Base
         assignment_col = 'sp26_assignment' if 'sp26_assignment' in df_filtered.columns else ('assignment' if 'assignment' in df_filtered.columns else None)
         treat_arm_col = 'sp26_treat_arm' if 'sp26_treat_arm' in df_filtered.columns else ('treatment' if 'treatment' in df_filtered.columns else None)
 
+        df_filtered['experiment_cohort'] = 'Other'
         if assignment_col and treat_arm_col:
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Control'), 'group'] = df_filtered['autotypenew'] + ' - Control'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Gift'), 'group'] = df_filtered['autotypenew'] + ' - Gift'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Offer') & (df_filtered['autotypenew'] == 'BEV'), 'group'] = 'BEV - Offer'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[treat_arm_col] == 'Enrolled, Paid'), 'group'] = df_filtered['autotypenew'] + ' - Enrolled'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Excluded'), 'group'] = df_filtered['autotypenew'] + ' - Excluded'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Control'), 'experiment_cohort'] = 'Control'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Gift'), 'experiment_cohort'] = 'Gift'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Offer'), 'experiment_cohort'] = 'Offer'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[treat_arm_col] == 'Enrolled, Paid'), 'experiment_cohort'] = 'Enrolled'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Excluded'), 'experiment_cohort'] = 'Excluded'
 
-        subgroup_options = [
-            'BEV - Control',
-            'PHEV - Control',
-            'BEV - Gift',
-            'PHEV - Gift',
-            'BEV - Offer',
-            'BEV - Enrolled'
-        ]
-        group_color_map = {
-            'BEV - Control': '#D81B60',
-            'PHEV - Control': '#D81B60',
-            'BEV - Gift': '#1E88E5',
-            'PHEV - Gift': '#1E88E5',
-            'BEV - Offer': '#004D40',
-            'BEV - Enrolled': '#E2A61A'
-        }
-        group_dash_map = {
-            'BEV - Control': [],
-            'PHEV - Control': [5, 5],
-            'BEV - Gift': [],
-            'PHEV - Gift': [5, 5],
-            'BEV - Offer': [],
-            'BEV - Enrolled': []
-        }
-        subgroup_icon_map = {
-            'BEV - Control': '🔴 ─',
-            'PHEV - Control': '🔴 ╌',
-            'BEV - Gift': '🔵 ─',
-            'PHEV - Gift': '🔵 ╌',
-            'BEV - Offer': '🟢 ─',
-            'BEV - Enrolled': '🟡 ─'
-        }
+        # 6. Dynamic Group Evaluation Step
+        if chosen_disagg_cols:
+            # Safely string-combine columns with a clean spacer tag
+            df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1) + ' - ' + df_filtered['experiment_cohort']
+        else:
+            df_filtered['group'] = df_filtered['experiment_cohort']
 
-        st.write('Show subgroup lines:')
-        checkbox_rows = [
-            ('BEV - Control', 'PHEV - Control'),
-            ('BEV - Gift', 'PHEV - Gift'),
-            ('BEV - Offer', None),
-            ('BEV - Enrolled', None)
-        ]
+        # Remove unassigned cohorts out of calculations
+        df_filtered = df_filtered[~df_filtered['group'].str.endswith('Other') & ~df_filtered['group'].str.endswith('Excluded')]
+
+        # 7. Generate Aesthetic Style Mappings Dynamically
+        unique_groups_present = sorted(df_filtered['group'].unique().tolist())
+        
+        cohort_colors = {'Control': '#D81B60', 'Gift': '#1E88E5', 'Offer': '#004D40', 'Enrolled': '#E2A61A'}
+        cohort_icons = {'Control': '🔴', 'Gift': '🔵', 'Offer': '🟢', 'Enrolled': '🟡'}
+        
+        group_color_map = {}
+        group_dash_map = {}
+        subgroup_display_labels = {}
+
+        for grp in unique_groups_present:
+            # Find which tracking experimental group this string matches
+            matched_cohort = 'Control'
+            for cohort in cohort_colors.keys():
+                if grp.endswith(cohort):
+                    matched_cohort = cohort
+                    break
+            
+            group_color_map[grp] = cohort_colors[matched_cohort]
+            # Dash lines if PHEV properties are explicitly tracked inside the customized group string
+            group_dash_map[grp] = [5, 5] if 'PHEV' in grp else []
+            
+            icon = cohort_icons[matched_cohort]
+            line_style = "╌" if 'PHEV' in grp else "─"
+            subgroup_display_labels[grp] = f"{icon} {line_style} {grp}"
+
+        # 8. Render Dynamic Group Visibility Subgroup Toggles
+        st.write("#### Active Subgroup Visual Lines Selector:")
         selected_subgroups = []
-        for left_label, right_label in checkbox_rows:
-            left_col, right_col = st.columns(2)
-            left_selected = left_col.checkbox(
-                f"{subgroup_icon_map.get(left_label, '')} {left_label}",
-                value=True
-            )
-            if left_selected:
-                selected_subgroups.append(left_label)
-            if right_label is not None:
-                right_selected = right_col.checkbox(
-                    f"{subgroup_icon_map.get(right_label, '')} {right_label}",
-                    value=True
-                )
-                if right_selected:
-                    selected_subgroups.append(right_label)
+        if unique_groups_present:
+            # Split toggles across two clean columns for viewport readability
+            col_left, col_right = st.columns(2)
+            for i, grp in enumerate(unique_groups_present):
+                target_col = col_left if i % 2 == 0 else col_right
+                if target_col.checkbox(subgroup_display_labels[grp], value=True):
+                    selected_subgroups.append(grp)
+        else:
+            st.info("No active cohorts found with current inclusion choices.")
 
-        # ------------------ CHARTS & GRAPHICAL VISUALIZATIONS ------------------
+        # 9. Smart Scaling Array Strategy (Fallback calculates sample counts automatically)
+        scale_map = {
+            'BEV - Offer': 921, 'PHEV - Offer': 500,
+            'BEV - Gift': 307,  'PHEV - Gift': 173,
+            'BEV - Control': 309, 'PHEV - Control': 172,
+            'BEV - Enrolled': 143, 'PHEV - Enrolled': 75
+        }
+        # Backfill calculation rules if custom cross-referencing values are selected
+        for grp in unique_groups_present:
+            if grp not in scale_map:
+                # Approximate dynamic baseline sizing using unique driver footprint count
+                driver_count = df_filtered[df_filtered['group'] == grp]['driver'].nunique()
+                scale_map[grp] = driver_count if driver_count > 0 else 1
+
+
+        # ==============================================================================
+        # RESULTS SECTION
+        # ==============================================================================
         st.markdown("---")
+        st.header('Results & Graphical Insights 📈')
 
         # --- PLOT 1: Total Campus Sessions ---
         st.subheader('Sessions per Week')
         st.write('This plot shows the number of weekly campus L2 charge sessions associated with drivers assigned to the Offer, Gift, and Control groups. For reference, the initial offer email went out during week 167, while subscription pricing began during week 170.')
         
-        session_chart = (
-            alt.Chart(session_counts)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X('week:Q', title='Experiment Week'),
-                y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
+        if not session_counts.empty:
+            session_chart = (
+                alt.Chart(session_counts)
+                .mark_line(point=True)
+                .encode(
+                    x=alt.X('week:Q', title='Experiment Week'),
+                    y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
+                )
             )
-        )
-        if event_rule is not None:
-            session_chart = alt.layer(session_chart, event_rule)
-        st.altair_chart(session_chart, use_container_width=True)
+            if event_rule is not None:
+                session_chart = alt.layer(session_chart, event_rule)
+            st.altair_chart(session_chart, use_container_width=True)
+        else:
+            st.warning("No data rows available to draw total aggregate sessions.")
 
         # --- PLOT 2: Daily Sessions by Subgroup ---
-        grouped_sessions = df_filtered[df_filtered['group'].isin(subgroup_options)].copy()
-        
-        grouped_counts = (
-            grouped_sessions.groupby(['week', 'group'])[sessions_col]
-            .sum()
-            .reset_index(name='session_count')
-            .sort_values(['group', 'week'])
-        )
-        filtered_group_counts = grouped_counts[grouped_counts['group'].isin(selected_subgroups)].copy()
-        
-        filtered_group_counts_daily = filtered_group_counts.copy()
-        filtered_group_counts_daily['session_count'] = filtered_group_counts_daily['session_count'] / 7.0
-
         st.subheader('Daily Sessions By Group')
         st.caption('Displaying weekly averages of summed attempted sessions')
-        grouped_chart = (
-            alt.Chart(filtered_group_counts_daily)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X('week:Q', title='Experiment Week'),
-                y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
-                color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+        
+        if selected_subgroups:
+            grouped_counts = (
+                df_filtered[df_filtered['group'].isin(selected_subgroups)]
+                .groupby(['week', 'group'])[sessions_col]
+                .sum()
+                .reset_index(name='session_count')
+                .sort_values(['group', 'week'])
             )
-        )
-        if event_rule is not None:
-            grouped_chart = alt.layer(grouped_chart, event_rule)
-        st.altair_chart(grouped_chart, use_container_width=True)
+            
+            filtered_group_counts_daily = grouped_counts.copy()
+            filtered_group_counts_daily['session_count'] = filtered_group_counts_daily['session_count'] / 7.0
 
-        # --- PLOT 3: Sessions Per Capita ---
-        scaled_counts = filtered_group_counts.copy()
-        scale_map = {
-            'BEV - Offer': 921,
-            'BEV - Gift': 307,
-            'BEV - Control': 309,
-            'PHEV - Control': 172,
-            'PHEV - Gift': 173,
-            'BEV - Enrolled': 143
-        }
-        scaled_counts['session_count'] = scaled_counts.apply(
-            lambda row: row['session_count'] / scale_map.get(row['group'], 1),
-            axis=1
-        )
-        st.subheader('Sessions per Capita per Week by Group')
-        scaled_chart = (
-            alt.Chart(scaled_counts)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X('week:Q', title='Experiment Week'),
-                y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
-                color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+            grouped_chart = (
+                alt.Chart(filtered_group_counts_daily)
+                .mark_line(point=True)
+                .encode(
+                    x=alt.X('week:Q', title='Experiment Week'),
+                    y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
+                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
+                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                )
             )
-        )
-        if event_rule is not None:
-            scaled_chart = alt.layer(scaled_chart, event_rule)
-        st.altair_chart(scaled_chart, use_container_width=True)
+            if event_rule is not None:
+                grouped_chart = alt.layer(grouped_chart, event_rule)
+            st.altair_chart(grouped_chart, use_container_width=True)
+
+            # --- PLOT 3: Sessions Per Capita ---
+            st.subheader('Sessions per Capita per Week by Group')
+            scaled_counts = grouped_counts.copy()
+            scaled_counts['session_count'] = scaled_counts.apply(
+                lambda row: row['session_count'] / scale_map.get(row['group'], 1),
+                axis=1
+            )
+            scaled_chart = (
+                alt.Chart(scaled_counts)
+                .mark_line(point=True)
+                .encode(
+                    x=alt.X('week:Q', title='Experiment Week'),
+                    y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
+                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
+                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                )
+            )
+            if event_rule is not None:
+                scaled_chart = alt.layer(scaled_chart, event_rule)
+            st.altair_chart(scaled_chart, use_container_width=True)
+        else:
+            st.info("Check one or more subgroups above to view cohort line comparison charts.")
 
         # --- PLOTS 4 & 5: Energy Delivery (kWh) ---
-        kwh_col = 'kwh_sum' if 'kwh_sum' in grouped_sessions.columns else ('energy' if 'energy' in grouped_sessions.columns else None)
+        kwh_col = 'kwh_sum' if 'kwh_sum' in df_filtered.columns else ('energy' if 'energy' in df_filtered.columns else None)
         
-        if kwh_col:
-            grouped_sessions[kwh_col] = pd.to_numeric(grouped_sessions[kwh_col], errors='coerce')
+        if kwh_col and selected_subgroups:
+            df_filtered[kwh_col] = pd.to_numeric(df_filtered[kwh_col], errors='coerce')
             grouped_kwh = (
-                grouped_sessions.dropna(subset=[kwh_col])
+                df_filtered[df_filtered['group'].isin(selected_subgroups)]
+                .dropna(subset=[kwh_col])
                 .groupby(['week', 'group'])
                 .agg(kwh_sum=(kwh_col, 'sum'))
                 .reset_index()
                 .sort_values(['group', 'week'])
             )
-            filtered_group_kwh = grouped_kwh[grouped_kwh['group'].isin(selected_subgroups)]
             
             st.subheader('Weekly kWh by Group')
             kwh_chart = (
-                alt.Chart(filtered_group_kwh)
+                alt.Chart(grouped_kwh)
                 .mark_line(point=True)
                 .encode(
                     x=alt.X('week:Q', title='Experiment Week'),
@@ -369,12 +400,12 @@ if df_research is not None:
                 kwh_chart = alt.layer(kwh_chart, event_rule)
             st.altair_chart(kwh_chart, use_container_width=True)
 
-            scaled_kwh = filtered_group_kwh.copy()
+            st.subheader('kWh per Capita per Week by Group')
+            scaled_kwh = grouped_kwh.copy()
             scaled_kwh['kwh_sum'] = scaled_kwh.apply(
                 lambda row: row['kwh_sum'] / scale_map.get(row['group'], 1),
                 axis=1
             )
-            st.subheader('kWh per Capita per Week by Group')
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
                 .mark_line(point=True)
@@ -388,14 +419,13 @@ if df_research is not None:
             if event_rule is not None:
                 scaled_kwh_chart = alt.layer(scaled_kwh_chart, event_rule)
             st.altair_chart(scaled_kwh_chart, use_container_width=True)
-        else:
+        elif not kwh_col:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
 
         # --- SUMMARY STATISTICS (POST WEEK 167) ---
-        summary_since_week167 = grouped_sessions[grouped_sessions['week'] >= 167].copy()
-        if summary_since_week167.empty:
-            st.warning('No subgroup sessions found on or after week 167.')
-        else:
+        summary_since_week167 = df_filtered[(df_filtered['week'] >= 167) & (df_filtered['group'].isin(selected_subgroups))].copy()
+        
+        if selected_subgroups and not summary_since_week167.empty:
             if kwh_col:
                 summary_since_week167[kwh_col] = pd.to_numeric(summary_since_week167[kwh_col], errors='coerce')
                 kwh_totals = (
@@ -473,5 +503,7 @@ if df_research is not None:
                     )
                 )
                 st.altair_chart(charging_duration_chart, use_container_width=True)
-    else:
-        st.error("SP26 Research Data is missing the 'week' field required for analysis.")
+        elif selected_subgroups:
+            st.warning('No subgroup sessions found on or after week 167 for the selected criteria.')
+else:
+    st.error("SP26 Research Data is missing the 'week' field required for analysis.")
