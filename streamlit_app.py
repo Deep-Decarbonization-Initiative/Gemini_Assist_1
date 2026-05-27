@@ -211,11 +211,13 @@ if df_research is not None:
         )
 
         # 5. Clean Dynamic Group Evaluation Logic
-        # SAFEGUARD: Short-circuit logic if the filtered dataframe contains zero rows
+        # FIXED: Replacing row-by-row .apply(axis=1) with fully vectorized loop concatenation
         if df_filtered.empty:
             df_filtered['group'] = ''
         elif chosen_disagg_cols and len(chosen_disagg_cols) > 0:
-            df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).apply(lambda row: ' - '.join(row), axis=1)
+            df_filtered['group'] = df_filtered[chosen_disagg_cols[0]].astype(str)
+            for col in chosen_disagg_cols[1:]:
+                df_filtered['group'] = df_filtered['group'] + ' - ' + df_filtered[col].astype(str)
         else:
             df_filtered['group'] = 'All Included Drivers'
 
