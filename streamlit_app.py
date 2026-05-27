@@ -98,16 +98,16 @@ if df_research is not None:
         st.subheader('2. Inclusion Criteria 🔍')
         st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
         
-        # Define field/column assignments with robust fallback names
+        # Define field/column assignments with robust fallback names (Updated to exclusively use treatment)
         drivetrain_col = 'autotypenew' if 'autotypenew' in df_research.columns else None
-        treatment_col = 'treatment' if 'treatment' in df_research.columns else ('sp26_treat_arm' if 'sp26_treat_arm' in df_research.columns else None)
+        treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         recency_col = 'lastperiodcharged' if 'lastperiodcharged' in df_research.columns else None
         energy_col = 'baselinekwhcharged' if 'baselinekwhcharged' in df_research.columns else None
         freq_col = 'baselinedaysofcharging' if 'baselinedaysofcharging' in df_research.columns else None
         loc_col = 'charginglocgroup' if 'charginglocgroup' in df_research.columns else None
         bring_col = 'kwhcouldbringtocampus' if 'kwhcouldbringtocampus' in df_research.columns else None
 
-        # Displaying criteria sequentially in a single column layout
+        # Displaying criteria sequentially down a single clean vertical column
         if drivetrain_col:
             unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
             selected_drivetrains = st.multiselect("Drivetrain Filter (autotypenew):", options=unique_drivetrains, default=unique_drivetrains)
@@ -210,39 +210,39 @@ if df_research is not None:
             .sort_values('week')
         )
 
-        # 5. Core Experiment Assignment Base
-        assignment_col = 'sp26_assignment' if 'sp26_assignment' in df_filtered.columns else ('assignment' if 'assignment' in df_filtered.columns else None)
-        treat_arm_col = 'sp26_treat_arm' if 'sp26_treat_arm' in df_filtered.columns else ('treatment' if 'treatment' in df_filtered.columns else None)
-
+        # 5. Core Experiment Cohort Isolation Logic (Cleanly mapping treatment field values case-insensitively)
         df_filtered['experiment_cohort'] = 'Other'
-        if assignment_col and treat_arm_col:
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Control'), 'experiment_cohort'] = 'Control'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Gift'), 'experiment_cohort'] = 'Gift'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Offer'), 'experiment_cohort'] = 'Offer'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[treat_arm_col] == 'Enrolled, Paid'), 'experiment_cohort'] = 'Enrolled'
-            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (df_filtered[assignment_col] == 'Excluded'), 'experiment_cohort'] = 'Excluded'
+        if treatment_col:
+            # Normalize to string to safeguard lookups
+            treat_series = df_filtered[treatment_col].astype(str).str.strip().str.lower()
+            
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series == 'control'), 'experiment_cohort'] = 'control'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series == 'gift'), 'experiment_cohort'] = 'gift'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series.str.startswith('offer')), 'experiment_cohort'] = 'offer'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series.str.startswith('enrolled')), 'experiment_cohort'] = 'enrolled'
+            df_filtered.loc[(df_filtered['tc_status'] == 'active') & (treat_series == 'excluded'), 'experiment_cohort'] = 'excluded'
 
-        # 6. Dynamic Group Evaluation Step
+        # 6. Dynamic Group Assembly Stage
         if chosen_disagg_cols:
             df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).agg(' - '.join, axis=1) + ' - ' + df_filtered['experiment_cohort']
         else:
             df_filtered['group'] = df_filtered['experiment_cohort']
 
-        # Remove unassigned cohorts out of calculations
-        df_filtered = df_filtered[~df_filtered['group'].str.endswith('Other') & ~df_filtered['group'].str.endswith('Excluded')]
+        # Discard unassigned entries or exclusions
+        df_filtered = df_filtered[~df_filtered['group'].str.endswith('Other') & ~df_filtered['group'].str.endswith('excluded')]
 
-        # 7. Generate Aesthetic Style Mappings Dynamically
+        # 7. Dynamic Aesthetic Engine (Prevents chart failure by mapping strings on-the-fly)
         unique_groups_present = sorted(df_filtered['group'].unique().tolist())
         
-        cohort_colors = {'Control': '#D81B60', 'Gift': '#1E88E5', 'Offer': '#004D40', 'Enrolled': '#E2A61A'}
-        cohort_icons = {'Control': '🔴', 'Gift': '🔵', 'Offer': '🟢', 'Enrolled': '🟡'}
+        cohort_colors = {'control': '#D81B60', 'gift': '#1E88E5', 'offer': '#004D40', 'enrolled': '#E2A61A'}
+        cohort_icons = {'control': '🔴', 'gift': '🔵', 'offer': '🟢', 'enrolled': '🟡'}
         
         group_color_map = {}
         group_dash_map = {}
         subgroup_display_labels = {}
 
         for grp in unique_groups_present:
-            matched_cohort = 'Control'
+            matched_cohort = 'control'
             for cohort in cohort_colors.keys():
                 if grp.endswith(cohort):
                     matched_cohort = cohort
@@ -269,12 +269,12 @@ if df_research is not None:
         else:
             st.info("No active cohorts found with current inclusion choices.")
 
-        # 9. Smart Scaling Array Strategy
+        # 9. Adaptive Capacity Scaling Engine
         scale_map = {
-            'BEV - Offer': 921, 'PHEV - Offer': 500,
-            'BEV - Gift': 307,  'PHEV - Gift': 173,
-            'BEV - Control': 309, 'PHEV - Control': 172,
-            'BEV - Enrolled': 143, 'PHEV - Enrolled': 75
+            'BEV - offer': 921, 'PHEV - offer': 500,
+            'BEV - gift': 307,  'PHEV - gift': 173,
+            'BEV - control': 309, 'PHEV - control': 172,
+            'BEV - enrolled': 143, 'PHEV - enrolled': 75
         }
         for grp in unique_groups_present:
             if grp not in scale_map:
@@ -297,7 +297,6 @@ if df_research is not None:
                 alt.Chart(session_counts)
                 .mark_line(point=True)
                 .encode(
-                    # Added interactive scale domains to zoom boundaries tightly 
                     x=alt.X('week:Q', title='Experiment Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
                 )
