@@ -211,8 +211,8 @@ if df_research is not None:
         )
 
         # 5. Clean Dynamic Group Evaluation Logic
-        # FIX: Explicitly forces row-by-row string flattening via lambda to fix DataFrame assignment crashes
-        if chosen_disagg_cols:
+        # FIXED: Explicitly applies row-by-row string flattening using .apply() to completely prevent multi-column crashes
+        if chosen_disagg_cols and len(chosen_disagg_cols) > 0:
             df_filtered['group'] = df_filtered[chosen_disagg_cols].astype(str).apply(lambda row: ' - '.join(row), axis=1)
         else:
             df_filtered['group'] = 'All Included Drivers'
@@ -228,18 +228,18 @@ if df_research is not None:
         # --- Sub-section 4: Active Subgroups and Legend ---
         st.subheader('4. Active Subgroups and Legend 🏷️')
         
-        # Colorblind-friendly custom high-contrast categorical palette (e.g., Okabe-Ito / Wong inspired)
+        # Colorblind-friendly custom high-contrast categorical palette (Wong & Okabe-Ito optimized)
         palette_pool = [
-            '#0072B2',  # Clear Blue
-            '#E69F00',  # Orange
+            '#0072B2',  # Deep Clear Blue
+            '#E69F00',  # Warm Orange
             '#009E73',  # Bluish Green
             '#CC79A7',  # Reddish Purple
-            '#F0E442',  # Yellow
-            '#D55E00',  # Vermilion
-            '#56B4E9',  # Sky Blue
-            '#999999',  # Neutral Gray
-            '#491D88',  # Dark Violet
-            '#A6C48A'   # Soft Sage Green
+            '#F0E442',  # Distinct Soft Yellow
+            '#D55E00',  # Vermilion/Red-Orange
+            '#56B4E9',  # Light Sky Blue
+            '#999999',  # Medium Gray
+            '#491D88',  # Dark Blue-Indigo
+            '#A6C48A'   # Sage Soft Green
         ]
         
         group_color_map = {}
