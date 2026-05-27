@@ -274,7 +274,7 @@ if df_research is not None:
         # 6. Sample Footprint Count Capacity Dynamic Allocator Engine
         scale_map = {}
         for grp in unique_groups_present:
-            driver_count = df_filtered[df_filtered['group'] == grp]['driver_id'].nunique()
+            driver_count = df_filtered[df_filtered['group'] == grp]['driver'].nunique()
             scale_map[grp] = driver_count if driver_count > 0 else 1
 
 
