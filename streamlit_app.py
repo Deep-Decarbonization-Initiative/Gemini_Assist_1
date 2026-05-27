@@ -17,7 +17,7 @@ Everything below is preliminary and subject to change, with minimal QA/QC done t
 """
 
 # Load local dataset from the repository's datasets folder.
-research_path = Path('data/SP26_userxweek_charging_light.parquet')
+research_path = Path('data/SP26_userxweek_charging_light_27may26.parquet')
 
 if research_path.exists():
     df_research = pd.read_parquet(research_path)
