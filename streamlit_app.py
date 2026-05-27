@@ -73,9 +73,9 @@ if df_research is not None:
             
             # 1. Thinner, lighter background vertical line rule
             event_rule = alt.Chart(event_markers).mark_rule(
-                color='#d3d3d3', 
+                color='#808080', 
                 strokeWidth=1, 
-                opacity=0.7
+                opacity=0.5
             ).encode(
                 x=alt.X('week:Q', scale=alt.Scale(clamp=True))
             )
