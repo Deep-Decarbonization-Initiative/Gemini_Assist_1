@@ -21,9 +21,19 @@ Everything below is preliminary and subject to change, with minimal QA/QC done t
 # Load local dataset from the repository's datasets folder.
 research_path = Path('data/SP26_userxweek_charging_light_28may26.parquet')
 
-if research_path.exists():
-    df_research = pd.read_parquet(research_path)
+# PERFORMANCE FIX: Cache the dataset so it doesn't reload on every interaction
+@st.cache_data
+def load_research_data():
+    if research_path.exists():
+        return pd.read_parquet(research_path)
+    return None
+
+df_research_raw = load_research_data()
+
+if df_research_raw is not None:
     st.success(f"Loaded SP26 Research Data dataset from {research_path}")
+    # Always operate on a copy so the cache remains pristine
+    df_research = df_research_raw.copy() 
 else:
     df_research = None
     st.warning(f"SP26 Research Data file not found: {research_path}")
@@ -78,8 +88,7 @@ if df_research is not None:
         treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         
         if treatment_col:
-            # BUG FIX: If Parquet loaded 'treatment' as a categorical type, it will crash 
-            # when we try to assign a new value ('Offer'). We must convert to string first.
+            # BUG FIX: If Parquet loaded 'treatment' as a categorical type, convert to string
             if df_research[treatment_col].dtype.name == 'category':
                 df_research[treatment_col] = df_research[treatment_col].astype(str)
                 
@@ -100,22 +109,25 @@ if df_research is not None:
        The timescale slider dynamically adjusts the timeframe on the figures. 
        The Inclusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., PHEVs, a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
        The Disaggregation Fields then determine how to group the remaining data (e.g., by drivetrain, treatment group, and/or given covariates).
-        
         """
         # --- Sub-section 1: Timescale ---
         st.subheader('1. Timescale 📅')
-        min_week = int(df_research['week'].min())
-        max_week = int(df_research['week'].max())
+        
+        data_min = int(df_research['week'].min())
+        data_max = int(df_research['week'].max())
+        
+        slider_min = min(1, data_min)
+        slider_max = max(185, data_max)
         
         selected_week_range = st.slider(
             "Select range of weeks to display below. These are indexed to January 1st, 2023. " \
             "For reference, the SP26 experimental offers went out during week 167, discounts began week 170, and discounts will end week 183:",
-            min_value=min_week,
-            max_value=max_week,
-            value=(min_week, max_week)
+            min_value=slider_min,
+            max_value=slider_max,
+            value=(105, 177)
         )
 
-        # Event Visibility Toggle Checkbox (Defaulted to True)
+        # Event Visibility Toggle Checkbox
         show_events = st.checkbox("Display event dates.", value=True)
         """
         Dotted vertical lines indicate significant events in the club's history, including key experiment dates.
@@ -134,22 +146,37 @@ if df_research is not None:
         loc_col = 'charginglocgroup' if 'charginglocgroup' in df_research.columns else None
         bring_col = 'kwhcouldbringtocampus' if 'kwhcouldbringtocampus' in df_research.columns else None
 
+        # MINOR DATA QUIRK FIX: Helper function to clean 1.0 into 1 while leaving string categories alone
+        def clean_int_str(s):
+            def parse_val(x):
+                if pd.isna(x): return x
+                sx = str(x)
+                if sx.replace('.', '', 1).isdigit():
+                    fx = float(sx)
+                    if fx.is_integer():
+                        return str(int(fx))
+                return sx
+            return s.apply(parse_val)
+
+        if energy_col: df_research[energy_col] = clean_int_str(df_research[energy_col])
+        if freq_col: df_research[freq_col] = clean_int_str(df_research[freq_col])
+        if bring_col: df_research[bring_col] = clean_int_str(df_research[bring_col])
+
         # Displaying criteria sequentially down a single clean vertical column
         if drivetrain_col:
-            unique_drivetrains = sorted(df_research[drivetrain_col].dropna().unique().tolist())
+            unique_drivetrains = sorted(df_research[drivetrain_col].dropna().astype(str).unique().tolist())
             selected_drivetrains = st.multiselect("Drivetrain Filter (BEV, PHEV):", options=unique_drivetrains, default=unique_drivetrains)
         else:
             selected_drivetrains = None
 
         if treatment_col:
-            unique_treatments = sorted(df_research[treatment_col].dropna().unique().tolist())
-            # FIXED Typo: Removed double parenthesis near "did not pay"
+            unique_treatments = sorted(df_research[treatment_col].dropna().astype(str).unique().tolist())
             selected_treatments = st.multiselect("Treatment Group Filter (Note: Left refers to drivers who enrolled but did not pay):", options=unique_treatments, default=unique_treatments)
         else:
             selected_treatments = None
 
         if recency_col:
-            unique_recencies = sorted(df_research[recency_col].dropna().unique().tolist())
+            unique_recencies = sorted(df_research[recency_col].dropna().astype(str).unique().tolist())
             selected_recencies = st.multiselect("Charge Recency Filter (Academic year of most recent charge BEFORE experimental assignment):", options=unique_recencies, default=unique_recencies)
         else:
             selected_recencies = None
@@ -167,7 +194,7 @@ if df_research is not None:
             selected_freqs = None
 
         if loc_col:
-            unique_locs = sorted(df_research[loc_col].dropna().unique().tolist())
+            unique_locs = sorted(df_research[loc_col].dropna().astype(str).unique().tolist())
             selected_locs = st.multiselect("Charging Location Group:", options=unique_locs, default=unique_locs)
         else:
             selected_locs = None
@@ -217,19 +244,19 @@ if df_research is not None:
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
-        # 2. Apply Inclusion Criteria Categorical Filters (Updated with categorical string support)
+        # 2. Apply Inclusion Criteria Categorical Filters 
         if selected_drivetrains is not None:
-            df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
+            df_filtered = df_filtered[df_filtered[drivetrain_col].astype(str).isin(selected_drivetrains)]
         if selected_treatments is not None:
-            df_filtered = df_filtered[df_filtered[treatment_col].isin(selected_treatments)]
+            df_filtered = df_filtered[df_filtered[treatment_col].astype(str).isin(selected_treatments)]
         if selected_recencies is not None:
-            df_filtered = df_filtered[df_filtered[recency_col].isin(selected_recencies)]
+            df_filtered = df_filtered[df_filtered[recency_col].astype(str).isin(selected_recencies)]
         if selected_energies is not None:
             df_filtered = df_filtered[df_filtered[energy_col].astype(str).isin(selected_energies)]
         if selected_freqs is not None:
             df_filtered = df_filtered[df_filtered[freq_col].astype(str).isin(selected_freqs)]
         if selected_locs is not None:
-            df_filtered = df_filtered[df_filtered[loc_col].isin(selected_locs)]
+            df_filtered = df_filtered[df_filtered[loc_col].astype(str).isin(selected_locs)]
         if selected_brings is not None:
             df_filtered = df_filtered[df_filtered[bring_col].astype(str).isin(selected_brings)]
 
@@ -237,8 +264,6 @@ if df_research is not None:
         driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
 
         # 4. Generate Core Campus Metrics Baseline
-        # Deduplicate based on user and week to prevent double-counting drivers 
-        # who are in both 'Offer' and a constituent group in the multiselect.
         df_aggregate = df_filtered.drop_duplicates(subset=[driver_col_id, 'week'])
 
         session_counts = (
@@ -247,6 +272,12 @@ if df_research is not None:
             .reset_index(name='session_count')
             .sort_values('week')
         )
+
+        # CRITICAL BUG FIX: If 'Treatment' is not being used to draw distinct lines, 
+        # we must deduplicate the duplicated 'Offer' rows to prevent double-counting 
+        # across other variables like Drivetrain.
+        if "Treatment" not in selected_disagg_labels:
+            df_filtered = df_filtered.drop_duplicates(subset=[driver_col_id, 'week'])
 
         # 5. Clean Dynamic Group Evaluation Logic
         if df_filtered.empty:
@@ -340,17 +371,16 @@ if df_research is not None:
             ].copy()
             
             if not event_markers_filtered.empty:
-                # 1. Thinner, background vertical dotted line rule
                 event_rule = alt.Chart(event_markers_filtered).mark_rule(
                     color='#808080', 
                     strokeWidth=1, 
                     strokeDash=[2, 2],
                     opacity=0.9
                 ).encode(
-                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True))
+                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    tooltip=[alt.Tooltip('week:Q', title='Event Week'), alt.Tooltip('event_detail:N', title='Detail')]
                 )
                 
-                # 2. Static text label running vertically from bottom to top
                 event_text = alt.Chart(event_markers_filtered).mark_text(
                     align='left',
                     baseline='middle',
@@ -361,7 +391,7 @@ if df_research is not None:
                     fontSize=10
                 ).encode(
                     x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                    y=alt.value(270),  # Positioned near the bottom axis, extending upwards
+                    y=alt.value(270),  
                     text='event_detail:N'
                 )
             else:
@@ -381,12 +411,14 @@ if df_research is not None:
         This plot provides a level-set by showing the total number of sessions per week remaining in the data after applying filters from the Inclusion Criteria section.
         """
         if not session_counts.empty:
+            # UX FIX: Added Tooltips
             session_chart = (
                 alt.Chart(session_counts)
                 .mark_line(point=True, clip=True)
                 .encode(
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                    y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
+                    y=alt.Y('session_count:Q', title='Campus Weekly Sessions'),
+                    tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('session_count:Q', title='Total Sessions')]
                 )
             )
             if event_rule is not None:
@@ -415,6 +447,7 @@ if df_research is not None:
                 filtered_group_counts_daily = grouped_counts.copy()
                 filtered_group_counts_daily['session_count'] = filtered_group_counts_daily['session_count'] / 7.0
 
+                # UX FIX: Added Tooltips
                 grouped_chart = (
                     alt.Chart(filtered_group_counts_daily)
                     .mark_line(point=True, clip=True)
@@ -422,7 +455,8 @@ if df_research is not None:
                         x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                         y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
                         color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                        strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                        strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values()))),
+                        tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('session_count:Q', title='Sessions/Day', format='.1f')]
                     )
                 )
                 if event_rule is not None:
@@ -438,6 +472,7 @@ if df_research is not None:
             scaled_counts['active_driver_count'] = scaled_counts['active_driver_count'].fillna(1).replace(0, 1)
             scaled_counts['session_count'] = scaled_counts['session_count'] / scaled_counts['active_driver_count']
             
+            # UX FIX: Added Tooltips
             scaled_chart = (
                 alt.Chart(scaled_counts)
                 .mark_line(point=True, clip=True)
@@ -445,7 +480,8 @@ if df_research is not None:
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values())), legend=alt.Legend(orient='bottom')),
-                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())), legend=alt.Legend(orient='bottom'))
+                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())), legend=alt.Legend(orient='bottom')),
+                    tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('session_count:Q', title='Sessions/Capita', format='.2f')]
                 )
             )
             if event_rule is not None:
@@ -476,6 +512,7 @@ if df_research is not None:
             This plot, hidden by default, shows weekly kWh by subgroup but does not normalize by group size.
             """
             if show_weekly_kwh:
+                # UX FIX: Added Tooltips
                 kwh_chart = (
                     alt.Chart(grouped_kwh)
                     .mark_line(point=True, clip=True)
@@ -483,7 +520,8 @@ if df_research is not None:
                         x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                         y=alt.Y('kwh_sum:Q', title='Weekly kWh'),
                         color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                        strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                        strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values()))),
+                        tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('kwh_sum:Q', title='Total kWh', format='.0f')]
                     )
                 )
                 if event_rule is not None:
@@ -499,6 +537,7 @@ if df_research is not None:
             scaled_kwh['active_driver_count'] = scaled_kwh['active_driver_count'].fillna(1).replace(0, 1)
             scaled_kwh['kwh_sum'] = scaled_kwh['kwh_sum'] / scaled_kwh['active_driver_count']
             
+            # UX FIX: Added Tooltips
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
                 .mark_line(point=True, clip=True)
@@ -506,7 +545,8 @@ if df_research is not None:
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh per Capita'),
                     color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values())), legend=alt.Legend(orient='bottom')),
-                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())), legend=alt.Legend(orient='bottom'))
+                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())), legend=alt.Legend(orient='bottom')),
+                    tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('kwh_sum:Q', title='kWh/Capita', format='.1f')]
                 )
             )
             if event_rule is not None:
