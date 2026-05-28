@@ -44,6 +44,15 @@ if df_research is not None:
         df_research = df_research.dropna(subset=['week'])
         df_research['week'] = df_research['week'].astype(int)
 
+        # Inject the aggregated 'Offer' group by duplicating Paid, Ignored, and Left records
+        treatment_col_check = 'treatment' if 'treatment' in df_research.columns else None
+        if treatment_col_check:
+            offer_mask = df_research[treatment_col_check].astype(str).str.strip().str.lower().isin(['paid', 'ignored', 'left'])
+            df_offer = df_research[offer_mask].copy()
+            if not df_offer.empty:
+                df_offer[treatment_col_check] = 'Offer'
+                df_research = pd.concat([df_research, df_offer], ignore_index=True)
+
         # Identify the sessions metric column to sum up (attempted_sessions)
         sessions_col = 'attempted_sessions' if 'attempted_sessions' in df_research.columns else ('sessions' if 'sessions' in df_research.columns else None)
 
@@ -125,7 +134,7 @@ if df_research is not None:
 
         if treatment_col:
             unique_treatments = sorted(df_research[treatment_col].dropna().unique().tolist())
-            selected_treatments = st.multiselect("Treatment Group Filter (Note: Left refers to drivers who enrolled but did not pay)):", options=unique_treatments, default=unique_treatments)
+            selected_treatments = st.multiselect("Treatment Group Filter (Note: Left refers to drivers who enrolled but did not pay):", options=unique_treatments, default=unique_treatments)
         else:
             selected_treatments = None
 
@@ -149,7 +158,7 @@ if df_research is not None:
 
         if loc_col:
             unique_locs = sorted(df_research[loc_col].dropna().unique().tolist())
-            selected_locs = st.multiselect("Charging Location Group:", options=unique_locs, default=unique_locs)
+            selected_locs = st.multiselect("Stated Modal Charging Location: 1 - Home, 2 - UCSD, 3 - Other, 4 - Mixed", options=unique_locs, default=unique_locs)
         else:
             selected_locs = None
 
@@ -198,6 +207,9 @@ if df_research is not None:
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
+        # Identify driver tracking ID column early
+        driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
+
         # 2. Apply Inclusion Criteria Categorical Filters (Updated with categorical string support)
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
@@ -215,8 +227,10 @@ if df_research is not None:
             df_filtered = df_filtered[df_filtered[bring_col].astype(str).isin(selected_brings)]
 
         # 4. Generate Core Campus Metrics Baseline
+        # Unique mapping applied here prevents artificial overlapping double-counting from the added 'Offer' rows
+        df_unique_total_weeks = df_filtered.drop_duplicates(subset=['week', driver_col_id])
         session_counts = (
-            df_filtered.groupby('week')[sessions_col]
+            df_unique_total_weeks.groupby('week')[sessions_col]
             .sum()
             .reset_index(name='session_count')
             .sort_values('week')
@@ -285,9 +299,6 @@ if df_research is not None:
                     selected_subgroups.append(grp)
         else:
             st.info("No active cohorts found with current configuration choices.")
-
-        # Identify driver tracking ID column
-        driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
 
         # Prepare week-by-week active driver normalization mappings (for Line Charts)
         if 'active' in df_filtered.columns:
@@ -407,7 +418,7 @@ if df_research is not None:
                     grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
                 st.altair_chart(grouped_chart, use_container_width=True)
 
-            # --- PLOT 3: Sessions Per Capita (LEGEND MOVED TO BOTTOM) ---
+            # --- PLOT 3: Sessions Per Capita ---
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
             
@@ -469,7 +480,7 @@ if df_research is not None:
                     kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
                 st.altair_chart(kwh_chart, use_container_width=True)
 
-            # --- PLOT 5: kWh Per Capita (LEGEND MOVED TO BOTTOM) ---
+            # --- PLOT 5: kWh Per Capita ---
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
             
