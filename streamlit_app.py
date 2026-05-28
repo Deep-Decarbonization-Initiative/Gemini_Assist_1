@@ -7,7 +7,8 @@ from pathlib import Path
 # ==============================================================================
 # HEADER SECTION
 # ==============================================================================
-st.title("Spring 2026 Subscription Experiment 🚗🔌⚡")
+st.title("D2I Subscription Experiment")
+st.title("Spring 2026 🚗🔌⚡")
 st.write(
     "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with the Offer, Gift, and Control groups in the SP26 experiment." \
     "It does not include any data from non-Triton Charger drivers, nor any data from Triton Chargers who were ineligible for the experiment."
@@ -132,8 +133,9 @@ if df_research is not None:
         """
         # --- Sub-section 2: Inclusion Criteria ---
         st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
-        st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
-        
+        """
+        These options determine which driver-weeks pass the filtering rules to be used in final analytics.
+        """
         # Mapping base tracking metrics explicitly
         drivetrain_col = 'autotypenew' if 'autotypenew' in df_research.columns else None
         treatment_col = 'treatment' if 'treatment' in df_research.columns else None
@@ -189,7 +191,10 @@ if df_research is not None:
 
         # --- Sub-section 3: Disaggregation Fields ---
         st.subheader('3. Disaggregation Fields 📊')
-        st.caption("Select variables to define cohorts for visualization. Deselecting all generates aggregate curves.")
+        """
+        Select variables to define cohorts for visualization. 
+        Deselecting all generates aggregate curves.
+        """
         
         # Build option mapping matrix (Maintains compatibility with string formats)
         disagg_options = {}
