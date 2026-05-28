@@ -85,7 +85,7 @@ if df_research is not None:
             event_text = alt.Chart(event_markers).mark_text(
                 align='left',
                 baseline='middle',
-                dx=5,
+                dx=10,  # UPDATED: Shifted from 5 to 10 to guarantee text clears the dotted line
                 dy=0,
                 angle=270,
                 color='#666666',
@@ -127,9 +127,12 @@ if df_research is not None:
 
         # Event Visibility Toggle Checkbox (Defaulted to True)
         show_events = st.checkbox("Display event dates.", value=True)
-"""
-Dotted vertical lines indicate significant events in the club's history, including key experiment dates.
-"""
+
+        # FIXED: Corrected indentation for this block comment to resolve python compilation errors
+        """
+        Dotted vertical lines indicate significant events in the club's history, including key experiment dates.
+        """
+        
         # --- Sub-section 2: Inclusion Criteria ---
         st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
         st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
@@ -364,7 +367,6 @@ Dotted vertical lines indicate significant events in the club's history, includi
                 .sort_values(['group', 'week'])
             )
             
-            # UPDATED: Replaced explicit plot generation with visibility checkbox control
             show_daily_sessions = st.checkbox("Show Total Daily Sessions By Group", value=False)
             if show_daily_sessions:
                 filtered_group_counts_daily = grouped_counts.copy()
@@ -423,7 +425,6 @@ Dotted vertical lines indicate significant events in the club's history, includi
             
             st.subheader('Weekly kWh by Group')
             
-            # UPDATED: Replaced explicit plot generation with visibility checkbox control
             show_weekly_kwh = st.checkbox("Show Total Weekly kWh by Group", value=False)
             """
             This plot, hidden by default, shows weekly kWh by subgroup but does not normalize by group size.
@@ -465,21 +466,23 @@ Dotted vertical lines indicate significant events in the club's history, includi
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
 
 
-        # --- SUMMARY STATISTICS (POST WEEK 167) ---
-        summary_since_week167 = df_filtered[(df_filtered['week'] >= 167) & (df_filtered['group'].isin(selected_subgroups))].copy()
+        # --- SUMMARY STATISTICS (POST WEEK 170) ---
+        # UPDATED: Slicing logic adjusted from week 167 forward to look strictly from week 170 forward
+        summary_since_week170 = df_filtered[(df_filtered['week'] >= 170) & (df_filtered['group'].isin(selected_subgroups))].copy()
         
-        if selected_subgroups and not summary_since_week167.empty:
+        if selected_subgroups and not summary_since_week170.empty:
             if kwh_col:
-                summary_since_week167[kwh_col] = pd.to_numeric(summary_since_week167[kwh_col], errors='coerce')
+                summary_since_week170[kwh_col] = pd.to_numeric(summary_since_week170[kwh_col], errors='coerce')
                 kwh_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_kwh=(kwh_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
                 kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(scale_map).fillna(1)
                 
-                st.subheader('Total kWh per Capita by Subgroup (Since Week 167)')
+                # UPDATED: Changed display text header to state Week 170
+                st.subheader('Total kWh per Capita by Subgroup (Since Week 170)')
                 kwh_totals_chart = (
                     alt.Chart(kwh_totals)
                     .mark_bar()
@@ -493,16 +496,17 @@ Dotted vertical lines indicate significant events in the club's history, includi
                 st.altair_chart(kwh_totals_chart, use_container_width=True)
 
             # Duration columns handling fallbacks
-            sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week167.columns else ('session_duration' if 'session_duration' in summary_since_week167.columns else None)
+            sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week170.columns else ('session_duration' if 'session_duration' in summary_since_week170.columns else None)
             if sess_dur_col:
-                summary_since_week167[sess_dur_col] = pd.to_numeric(summary_since_week167[sess_dur_col], errors='coerce')
+                summary_since_week170[sess_dur_col] = pd.to_numeric(summary_since_week170[sess_dur_col], errors='coerce')
                 session_duration_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_session_duration=(sess_dur_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 167)')
+                # UPDATED: Changed display text header to state Week 170
+                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 170)')
                 
                 session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(scale_map).fillna(1)
                 
@@ -518,16 +522,17 @@ Dotted vertical lines indicate significant events in the club's history, includi
                 )
                 st.altair_chart(session_duration_chart, use_container_width=True)
 
-            chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week167.columns else ('charging_duration' if 'charging_duration' in summary_since_week167.columns else None)
+            chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week170.columns else ('charging_duration' if 'charging_duration' in summary_since_week170.columns else None)
             if chg_dur_col:
-                summary_since_week167[chg_dur_col] = pd.to_numeric(summary_since_week167[chg_dur_col], errors='coerce')
+                summary_since_week170[chg_dur_col] = pd.to_numeric(summary_since_week170[chg_dur_col], errors='coerce')
                 charging_duration_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_charging_duration=(chg_dur_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 167)')
+                # UPDATED: Changed display text header to state Week 170
+                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 170)')
                 
                 charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(scale_map).fillna(1)
                 
@@ -542,7 +547,35 @@ Dotted vertical lines indicate significant events in the club's history, includi
                     )
                 )
                 st.altair_chart(charging_duration_chart, use_container_width=True)
+
+            # --- ADDED: PLOT 6: Total Charging Days (Fourth Figure) ---
+            chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week170.columns else ('charging_days' if 'charging_days' in summary_since_week170.columns else None)
+            if chg_days_col:
+                summary_since_week170[chg_days_col] = pd.to_numeric(summary_since_week170[chg_days_col], errors='coerce')
+                charging_days_totals = (
+                    summary_since_week170.groupby('group')
+                    .agg(total_charging_days=(chg_days_col, 'sum'))
+                    .reset_index()
+                    .sort_values('group')
+                )
+                st.subheader('Total Charging Days Per Capita by Subgroup (Since Week 170)')
+                
+                charging_days_totals['total_charging_days'] = charging_days_totals['total_charging_days'] / charging_days_totals['group'].map(scale_map).fillna(1)
+                
+                charging_days_chart = (
+                    alt.Chart(charging_days_totals)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X('group:N', title='Subgroup', sort=list(group_color_map.keys())),
+                        y=alt.Y('total_charging_days:Q', title='Total Charging Days'),
+                        color=alt.Color('group:N', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values())), legend=None),
+                        tooltip=[alt.Tooltip('group:N', title='Subgroup'), alt.Tooltip('total_charging_days:Q', title='Total Charging Days', format=',.1f')]
+                    )
+                )
+                st.altair_chart(charging_days_chart, use_container_width=True)
+                
         elif selected_subgroups:
-            st.warning('No subgroup sessions found on or after week 167 for the selected criteria.')
+            # UPDATED: Changed message output warning context to reference Week 170
+            st.warning('No subgroup sessions found on or after week 170 for the selected criteria.')
 else:
     st.error("SP26 Research Data is missing the 'week' field required for analysis.")
