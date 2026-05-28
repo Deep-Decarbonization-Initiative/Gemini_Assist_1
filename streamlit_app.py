@@ -7,7 +7,7 @@ from pathlib import Path
 # ==============================================================================
 # HEADER SECTION
 # ==============================================================================
-st.title("D2I Spring 2026 Subscription Experiment 🚗🔌⚡")
+st.title("Spring 2026 Subscription Experiment 🚗🔌⚡")
 st.write(
     "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with the Offer, Gift, and Control groups in the SP26 experiment." \
     "It does not include any data from non-Triton Charger drivers, nor any data from Triton Chargers who were ineligible for the experiment."
@@ -85,7 +85,7 @@ if df_research is not None:
             event_text = alt.Chart(event_markers).mark_text(
                 align='left',
                 baseline='middle',
-                dx=10,  # UPDATED: Shifted from 5 to 10 to guarantee text clears the dotted line
+                dx=5,
                 dy=0,
                 angle=270,
                 color='#666666',
@@ -127,12 +127,9 @@ if df_research is not None:
 
         # Event Visibility Toggle Checkbox (Defaulted to True)
         show_events = st.checkbox("Display event dates.", value=True)
-
-        # FIXED: Corrected indentation for this block comment to resolve python compilation errors
         """
         Dotted vertical lines indicate significant events in the club's history, including key experiment dates.
         """
-        
         # --- Sub-section 2: Inclusion Criteria ---
         st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
         st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
@@ -313,12 +310,21 @@ if df_research is not None:
         else:
             st.info("No active cohorts found with current configuration choices.")
 
-        # 6. Sample Footprint Count Capacity Dynamic Allocator Engine
-        scale_map = {}
+        # Identify driver tracking ID column
         driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
-        for grp in unique_groups_present:
-            driver_count = df_filtered[df_filtered['group'] == grp][driver_col_id].nunique()
-            scale_map[grp] = driver_count if driver_count > 0 else 1
+
+        # Prepare week-by-week active driver normalization mappings (for Line Charts)
+        if 'active' in df_filtered.columns:
+            df_filtered['active'] = pd.to_numeric(df_filtered['active'], errors='coerce')
+            df_active_weekly = df_filtered[df_filtered['active'] == 1]
+        else:
+            df_active_weekly = df_filtered
+
+        weekly_active_scale = (
+            df_active_weekly.groupby(['week', 'group'])[driver_col_id]
+            .nunique()
+            .reset_index(name='active_driver_count')
+        )
 
 
         # ==============================================================================
@@ -332,6 +338,10 @@ if df_research is not None:
             event_rule = None
             event_text = None
 
+        st.header('Weekly Outcomes Across Selected Timescale')
+        """
+        The following charts aggregate outcomes variables weekly for the defined subgroups and display these across the selected timeframe.
+        """
         # --- PLOT 1: Total Campus Sessions ---
         st.subheader('Total Sessions per Week')
         """
@@ -367,6 +377,7 @@ if df_research is not None:
                 .sort_values(['group', 'week'])
             )
             
+            # UPDATED: Replaced explicit plot generation with visibility checkbox control
             show_daily_sessions = st.checkbox("Show Total Daily Sessions By Group", value=False)
             if show_daily_sessions:
                 filtered_group_counts_daily = grouped_counts.copy()
@@ -390,7 +401,10 @@ if df_research is not None:
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
             
-            scaled_counts['session_count'] = scaled_counts['session_count'] / scaled_counts['group'].map(scale_map).fillna(1)
+            # Apply dynamic week-specific denominator based on unique active drivers that week
+            scaled_counts = pd.merge(scaled_counts, weekly_active_scale, on=['week', 'group'], how='left')
+            scaled_counts['active_driver_count'] = scaled_counts['active_driver_count'].fillna(1).replace(0, 1)
+            scaled_counts['session_count'] = scaled_counts['session_count'] / scaled_counts['active_driver_count']
             
             scaled_chart = (
                 alt.Chart(scaled_counts)
@@ -425,6 +439,7 @@ if df_research is not None:
             
             st.subheader('Weekly kWh by Group')
             
+            # UPDATED: Replaced explicit plot generation with visibility checkbox control
             show_weekly_kwh = st.checkbox("Show Total Weekly kWh by Group", value=False)
             """
             This plot, hidden by default, shows weekly kWh by subgroup but does not normalize by group size.
@@ -447,7 +462,10 @@ if df_research is not None:
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
             
-            scaled_kwh['kwh_sum'] = scaled_kwh['kwh_sum'] / scaled_kwh['group'].map(scale_map).fillna(1)
+            # Apply dynamic week-specific denominator based on unique active drivers that week
+            scaled_kwh = pd.merge(scaled_kwh, weekly_active_scale, on=['week', 'group'], how='left')
+            scaled_kwh['active_driver_count'] = scaled_kwh['active_driver_count'].fillna(1).replace(0, 1)
+            scaled_kwh['kwh_sum'] = scaled_kwh['kwh_sum'] / scaled_kwh['active_driver_count']
             
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
@@ -466,23 +484,39 @@ if df_research is not None:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
 
 
+        st.header('Summary Statistics Since Experimental Launch')
+        """
+        The following charts aggregate outcomes variables for the defined subgroups across the duration of the experiment.
+        """
         # --- SUMMARY STATISTICS (POST WEEK 170) ---
-        # UPDATED: Slicing logic adjusted from week 167 forward to look strictly from week 170 forward
-        summary_since_week170 = df_filtered[(df_filtered['week'] >= 170) & (df_filtered['group'].isin(selected_subgroups))].copy()
+        summary_since_week167 = df_filtered[(df_filtered['week'] >= 167) & (df_filtered['group'].isin(selected_subgroups))].copy()
         
-        if selected_subgroups and not summary_since_week170.empty:
+        if selected_subgroups and not summary_since_week167.empty:
+            # OPTION A: Count unique drivers per subgroup who had active == 1 at least once since week 167
+            if 'active' in summary_since_week167.columns:
+                summary_since_week167['active'] = pd.to_numeric(summary_since_week167['active'], errors='coerce')
+                summary_active_drivers = summary_since_week167[summary_since_week167['active'] == 1]
+            else:
+                summary_active_drivers = summary_since_week167
+                
+            summary_scale_map = {}
+            for grp in selected_subgroups:
+                unique_active_count = summary_active_drivers[summary_active_drivers['group'] == grp][driver_col_id].nunique()
+                summary_scale_map[grp] = unique_active_count if unique_active_count > 0 else 1
+
+        
+            # Summary Chart 1: Total kWh Per Capita
             if kwh_col:
-                summary_since_week170[kwh_col] = pd.to_numeric(summary_since_week170[kwh_col], errors='coerce')
+                summary_since_week167[kwh_col] = pd.to_numeric(summary_since_week167[kwh_col], errors='coerce')
                 kwh_totals = (
-                    summary_since_week170.groupby('group')
+                    summary_since_week167.groupby('group')
                     .agg(total_kwh=(kwh_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(scale_map).fillna(1)
+                kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(summary_scale_map).fillna(1)
                 
-                # UPDATED: Changed display text header to state Week 170
-                st.subheader('Total kWh per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total kWh per Capita by Subgroup (Since Week 167)')
                 kwh_totals_chart = (
                     alt.Chart(kwh_totals)
                     .mark_bar()
@@ -495,20 +529,19 @@ if df_research is not None:
                 )
                 st.altair_chart(kwh_totals_chart, use_container_width=True)
 
-            # Duration columns handling fallbacks
-            sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week170.columns else ('session_duration' if 'session_duration' in summary_since_week170.columns else None)
+            # Summary Chart 2: Total Session Duration Per Capita
+            sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week167.columns else ('session_duration' if 'session_duration' in summary_since_week167.columns else None)
             if sess_dur_col:
-                summary_since_week170[sess_dur_col] = pd.to_numeric(summary_since_week170[sess_dur_col], errors='coerce')
+                summary_since_week167[sess_dur_col] = pd.to_numeric(summary_since_week167[sess_dur_col], errors='coerce')
                 session_duration_totals = (
-                    summary_since_week170.groupby('group')
+                    summary_since_week167.groupby('group')
                     .agg(total_session_duration=(sess_dur_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                # UPDATED: Changed display text header to state Week 170
-                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 167)')
                 
-                session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(scale_map).fillna(1)
+                session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(summary_scale_map).fillna(1)
                 
                 session_duration_chart = (
                     alt.Chart(session_duration_totals)
@@ -522,19 +555,19 @@ if df_research is not None:
                 )
                 st.altair_chart(session_duration_chart, use_container_width=True)
 
-            chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week170.columns else ('charging_duration' if 'charging_duration' in summary_since_week170.columns else None)
+            # Summary Chart 3: Total Charging Duration Per Capita
+            chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week167.columns else ('charging_duration' if 'charging_duration' in summary_since_week167.columns else None)
             if chg_dur_col:
-                summary_since_week170[chg_dur_col] = pd.to_numeric(summary_since_week170[chg_dur_col], errors='coerce')
+                summary_since_week167[chg_dur_col] = pd.to_numeric(summary_since_week167[chg_dur_col], errors='coerce')
                 charging_duration_totals = (
-                    summary_since_week170.groupby('group')
+                    summary_since_week167.groupby('group')
                     .agg(total_charging_duration=(chg_dur_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                # UPDATED: Changed display text header to state Week 170
-                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 167)')
                 
-                charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(scale_map).fillna(1)
+                charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(summary_scale_map).fillna(1)
                 
                 charging_duration_chart = (
                     alt.Chart(charging_duration_totals)
@@ -548,19 +581,19 @@ if df_research is not None:
                 )
                 st.altair_chart(charging_duration_chart, use_container_width=True)
 
-            # --- ADDED: PLOT 6: Total Charging Days (Fourth Figure) ---
-            chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week170.columns else ('charging_days' if 'charging_days' in summary_since_week170.columns else None)
+            # Summary Chart 4: Total Charging Days Per Capita
+            chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week167.columns else ('charging_days' if 'charging_days' in summary_since_week167.columns else ('daysofcharging_sum' if 'daysofcharging_sum' in summary_since_week167.columns else None))
             if chg_days_col:
-                summary_since_week170[chg_days_col] = pd.to_numeric(summary_since_week170[chg_days_col], errors='coerce')
+                summary_since_week167[chg_days_col] = pd.to_numeric(summary_since_week167[chg_days_col], errors='coerce')
                 charging_days_totals = (
-                    summary_since_week170.groupby('group')
+                    summary_since_week167.groupby('group')
                     .agg(total_charging_days=(chg_days_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Charging Days Per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total Charging Days per Capita by Subgroup (Since Week 167)')
                 
-                charging_days_totals['total_charging_days'] = charging_days_totals['total_charging_days'] / charging_days_totals['group'].map(scale_map).fillna(1)
+                charging_days_totals['total_charging_days'] = charging_days_totals['total_charging_days'] / charging_days_totals['group'].map(summary_scale_map).fillna(1)
                 
                 charging_days_chart = (
                     alt.Chart(charging_days_totals)
@@ -573,9 +606,8 @@ if df_research is not None:
                     )
                 )
                 st.altair_chart(charging_days_chart, use_container_width=True)
-                
+
         elif selected_subgroups:
-            # UPDATED: Changed message output warning context to reference Week 170
-            st.warning('No subgroup sessions found on or after week 170 for the selected criteria.')
+            st.warning('No subgroup sessions found on or after week 167 for the selected criteria.')
 else:
     st.error("SP26 Research Data is missing the 'week' field required for analysis.")
