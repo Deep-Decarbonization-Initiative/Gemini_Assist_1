@@ -494,15 +494,15 @@ if df_research is not None:
         The following charts aggregate outcomes variables for the defined subgroups across the duration of the experiment.
         """
         # --- SUMMARY STATISTICS (POST WEEK 170) ---
-        summary_since_week167 = df_filtered[(df_filtered['week'] >= 167) & (df_filtered['group'].isin(selected_subgroups))].copy()
+        summary_since_week170 = df_filtered[(df_filtered['week'] >= 170) & (df_filtered['group'].isin(selected_subgroups))].copy()
         
-        if selected_subgroups and not summary_since_week167.empty:
-            # OPTION A: Count unique drivers per subgroup who had active == 1 at least once since week 167
-            if 'active' in summary_since_week167.columns:
-                summary_since_week167['active'] = pd.to_numeric(summary_since_week167['active'], errors='coerce')
-                summary_active_drivers = summary_since_week167[summary_since_week167['active'] == 1]
+        if selected_subgroups and not summary_since_week170.empty:
+            # OPTION A: Count unique drivers per subgroup who had active == 1 at least once since week 170
+            if 'active' in summary_since_week170.columns:
+                summary_since_week170['active'] = pd.to_numeric(summary_since_week170['active'], errors='coerce')
+                summary_active_drivers = summary_since_week170[summary_since_week170['active'] == 1]
             else:
-                summary_active_drivers = summary_since_week167
+                summary_active_drivers = summary_since_week170
                 
             summary_scale_map = {}
             for grp in selected_subgroups:
@@ -512,16 +512,16 @@ if df_research is not None:
         
             # Summary Chart 1: Total kWh Per Capita
             if kwh_col:
-                summary_since_week167[kwh_col] = pd.to_numeric(summary_since_week167[kwh_col], errors='coerce')
+                summary_since_week170[kwh_col] = pd.to_numeric(summary_since_week170[kwh_col], errors='coerce')
                 kwh_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_kwh=(kwh_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
                 kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(summary_scale_map).fillna(1)
                 
-                st.subheader('Total kWh per Capita by Subgroup (Since Week 167)')
+                st.subheader('Total kWh per Capita by Subgroup (Since Week 170)')
                 kwh_totals_chart = (
                     alt.Chart(kwh_totals)
                     .mark_bar()
@@ -535,16 +535,16 @@ if df_research is not None:
                 st.altair_chart(kwh_totals_chart, use_container_width=True)
 
             # Summary Chart 2: Total Session Duration Per Capita
-            sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week167.columns else ('session_duration' if 'session_duration' in summary_since_week167.columns else None)
+            sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week170.columns else ('session_duration' if 'session_duration' in summary_since_week170.columns else None)
             if sess_dur_col:
-                summary_since_week167[sess_dur_col] = pd.to_numeric(summary_since_week167[sess_dur_col], errors='coerce')
+                summary_since_week170[sess_dur_col] = pd.to_numeric(summary_since_week170[sess_dur_col], errors='coerce')
                 session_duration_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_session_duration=(sess_dur_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 167)')
+                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 170)')
                 
                 session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(summary_scale_map).fillna(1)
                 
@@ -561,16 +561,16 @@ if df_research is not None:
                 st.altair_chart(session_duration_chart, use_container_width=True)
 
             # Summary Chart 3: Total Charging Duration Per Capita
-            chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week167.columns else ('charging_duration' if 'charging_duration' in summary_since_week167.columns else None)
+            chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week170.columns else ('charging_duration' if 'charging_duration' in summary_since_week170.columns else None)
             if chg_dur_col:
-                summary_since_week167[chg_dur_col] = pd.to_numeric(summary_since_week167[chg_dur_col], errors='coerce')
+                summary_since_week170[chg_dur_col] = pd.to_numeric(summary_since_week170[chg_dur_col], errors='coerce')
                 charging_duration_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_charging_duration=(chg_dur_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 167)')
+                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 170)')
                 
                 charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(summary_scale_map).fillna(1)
                 
@@ -587,16 +587,16 @@ if df_research is not None:
                 st.altair_chart(charging_duration_chart, use_container_width=True)
 
             # Summary Chart 4: Total Charging Days Per Capita
-            chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week167.columns else ('charging_days' if 'charging_days' in summary_since_week167.columns else ('daysofcharging_sum' if 'daysofcharging_sum' in summary_since_week167.columns else None))
+            chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week170.columns else ('charging_days' if 'charging_days' in summary_since_week170.columns else ('daysofcharging_sum' if 'daysofcharging_sum' in summary_since_week170.columns else None))
             if chg_days_col:
-                summary_since_week167[chg_days_col] = pd.to_numeric(summary_since_week167[chg_days_col], errors='coerce')
+                summary_since_week170[chg_days_col] = pd.to_numeric(summary_since_week170[chg_days_col], errors='coerce')
                 charging_days_totals = (
-                    summary_since_week167.groupby('group')
+                    summary_since_week170.groupby('group')
                     .agg(total_charging_days=(chg_days_col, 'sum'))
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Charging Days per Capita by Subgroup (Since Week 167)')
+                st.subheader('Total Charging Days per Capita by Subgroup (Since Week 170)')
                 
                 charging_days_totals['total_charging_days'] = charging_days_totals['total_charging_days'] / charging_days_totals['group'].map(summary_scale_map).fillna(1)
                 
@@ -613,6 +613,6 @@ if df_research is not None:
                 st.altair_chart(charging_days_chart, use_container_width=True)
 
         elif selected_subgroups:
-            st.warning('No subgroup sessions found on or after week 167 for the selected criteria.')
+            st.warning('No subgroup sessions found on or after week 170 for the selected criteria.')
 else:
     st.error("SP26 Research Data is missing the 'week' field required for analysis.")
