@@ -127,7 +127,9 @@ if df_research is not None:
 
         # Event Visibility Toggle Checkbox (Defaulted to True)
         show_events = st.checkbox("Display event dates.", value=True)
-
+"""
+Dotted vertical lines indicate significant events in the club's history, including key experiment dates.
+"""
         # --- Sub-section 2: Inclusion Criteria ---
         st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
         st.caption("Determine which driver-weeks pass the filtering rules to be used in final analytics.")
