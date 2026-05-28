@@ -384,7 +384,7 @@ if df_research is not None:
                 event_text = alt.Chart(event_markers_filtered).mark_text(
                     align='left',
                     baseline='middle',
-                    dx=300,
+                    dx=200,
                     dy=5,
                     angle=270,
                     color='#666666',
