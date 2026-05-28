@@ -44,15 +44,6 @@ if df_research is not None:
         df_research = df_research.dropna(subset=['week'])
         df_research['week'] = df_research['week'].astype(int)
 
-        # Inject the aggregated 'Offer' group by duplicating Paid, Ignored, and Left records
-        treatment_col_check = 'treatment' if 'treatment' in df_research.columns else None
-        if treatment_col_check:
-            offer_mask = df_research[treatment_col_check].astype(str).str.strip().str.lower().isin(['paid', 'ignored', 'left'])
-            df_offer = df_research[offer_mask].copy()
-            if not df_offer.empty:
-                df_offer[treatment_col_check] = 'Offer'
-                df_research = pd.concat([df_research, df_offer], ignore_index=True)
-
         # Identify the sessions metric column to sum up (attempted_sessions)
         sessions_col = 'attempted_sessions' if 'attempted_sessions' in df_research.columns else ('sessions' if 'sessions' in df_research.columns else None)
 
@@ -79,6 +70,26 @@ if df_research is not None:
 
         if not event_markers.empty:
             event_markers = event_markers.drop_duplicates(subset=['week'])
+
+
+        # ==============================================================================
+        # AGGREGATE "OFFER" GROUP CREATION
+        # ==============================================================================
+        # Identify the treatment column early to handle the overlapping groups
+        treatment_col = 'treatment' if 'treatment' in df_research.columns else None
+        
+        if treatment_col:
+            # Define the sub-groups that make up the "Offer" group
+            offer_components = ['Paid', 'Ignored', 'Left']
+            
+            # Isolate and copy the rows belonging to these specific groups
+            df_offer_duplicates = df_research[df_research[treatment_col].isin(offer_components)].copy()
+            
+            # Reassign the treatment label on these copied rows to the new aggregate name
+            df_offer_duplicates[treatment_col] = 'Offer'
+            
+            # Append them back into the main research dataframe
+            df_research = pd.concat([df_research, df_offer_duplicates], ignore_index=True)
 
 
         # ==============================================================================
@@ -115,10 +126,10 @@ if df_research is not None:
         st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
         """
         These options determine which driver-weeks pass the filtering rules to be used in final analytics.
+        Note: The 'Offer' group is an aggregation of 'Paid', 'Ignored', and 'Left'.
         """
         # Mapping base tracking metrics explicitly
         drivetrain_col = 'autotypenew' if 'autotypenew' in df_research.columns else None
-        treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         recency_col = 'lastperiodcharged' if 'lastperiodcharged' in df_research.columns else None
         energy_col = 'baselinekwhcharged' if 'baselinekwhcharged' in df_research.columns else None
         freq_col = 'baselinedaysofcharging' if 'baselinedaysofcharging' in df_research.columns else None
@@ -158,7 +169,7 @@ if df_research is not None:
 
         if loc_col:
             unique_locs = sorted(df_research[loc_col].dropna().unique().tolist())
-            selected_locs = st.multiselect("Stated Modal Charging Location: 1 - Home, 2 - UCSD, 3 - Other, 4 - Mixed", options=unique_locs, default=unique_locs)
+            selected_locs = st.multiselect("Charging Location Group:", options=unique_locs, default=unique_locs)
         else:
             selected_locs = None
 
@@ -207,9 +218,6 @@ if df_research is not None:
             (df_research['week'] <= selected_week_range[1])
         ].copy()
 
-        # Identify driver tracking ID column early
-        driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
-
         # 2. Apply Inclusion Criteria Categorical Filters (Updated with categorical string support)
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].isin(selected_drivetrains)]
@@ -226,11 +234,16 @@ if df_research is not None:
         if selected_brings is not None:
             df_filtered = df_filtered[df_filtered[bring_col].astype(str).isin(selected_brings)]
 
+        # Identify driver tracking ID column early for aggregate deduplication
+        driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
+
         # 4. Generate Core Campus Metrics Baseline
-        # Unique mapping applied here prevents artificial overlapping double-counting from the added 'Offer' rows
-        df_unique_total_weeks = df_filtered.drop_duplicates(subset=['week', driver_col_id])
+        # Deduplicate based on user and week to prevent double-counting drivers 
+        # who are in both 'Offer' and a constituent group in the multiselect.
+        df_aggregate = df_filtered.drop_duplicates(subset=[driver_col_id, 'week'])
+
         session_counts = (
-            df_unique_total_weeks.groupby('week')[sessions_col]
+            df_aggregate.groupby('week')[sessions_col]
             .sum()
             .reset_index(name='session_count')
             .sort_values('week')
@@ -418,7 +431,7 @@ if df_research is not None:
                     grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
                 st.altair_chart(grouped_chart, use_container_width=True)
 
-            # --- PLOT 3: Sessions Per Capita ---
+            # --- PLOT 3: Sessions Per Capita (LEGEND MOVED TO BOTTOM) ---
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
             
@@ -480,7 +493,7 @@ if df_research is not None:
                     kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
                 st.altair_chart(kwh_chart, use_container_width=True)
 
-            # --- PLOT 5: kWh Per Capita ---
+            # --- PLOT 5: kWh Per Capita (LEGEND MOVED TO BOTTOM) ---
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
             
