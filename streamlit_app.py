@@ -332,7 +332,7 @@ if df_research is not None:
                     align='left',
                     baseline='middle',
                     dx=50,
-                    dy=6,
+                    dy=5,
                     angle=270,
                     color='#666666',
                     fontSize=10
@@ -407,7 +407,7 @@ if df_research is not None:
                     grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
                 st.altair_chart(grouped_chart, use_container_width=True)
 
-            # --- PLOT 3: Sessions Per Capita ---
+            # --- PLOT 3: Sessions Per Capita (LEGEND MOVED TO BOTTOM) ---
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
             
@@ -422,8 +422,8 @@ if df_research is not None:
                 .encode(
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
-                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values())), legend=alt.Legend(orient='bottom')),
+                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())), legend=alt.Legend(orient='bottom'))
                 )
             )
             if event_rule is not None:
@@ -469,6 +469,7 @@ if df_research is not None:
                     kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
                 st.altair_chart(kwh_chart, use_container_width=True)
 
+            # --- PLOT 5: kWh Per Capita (LEGEND MOVED TO BOTTOM) ---
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
             
@@ -483,8 +484,8 @@ if df_research is not None:
                 .encode(
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh per Capita'),
-                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values()))),
-                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())))
+                    color=alt.Color('group:N', title='Group', scale=alt.Scale(domain=list(group_color_map.keys()), range=list(group_color_map.values())), legend=alt.Legend(orient='bottom')),
+                    strokeDash=alt.StrokeDash('group:N', scale=alt.Scale(domain=list(group_dash_map.keys()), range=list(group_dash_map.values())), legend=alt.Legend(orient='bottom'))
                 )
             )
             if event_rule is not None:
