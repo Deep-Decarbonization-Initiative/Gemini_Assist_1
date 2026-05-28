@@ -86,8 +86,8 @@ if df_research is not None:
             event_text = alt.Chart(event_markers).mark_text(
                 align='left',
                 baseline='middle',
-                dx=5,
-                dy=0,
+                dx=50,
+                dy=5,
                 angle=270,
                 color='#666666',
                 fontSize=10
@@ -489,9 +489,9 @@ if df_research is not None:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
 
 
-        st.header('Summary Statistics Since Experimental Launch')
+        st.header('Aggregate Outcomes Since Discounts Launch')
         """
-        The following charts aggregate outcomes variables for the defined subgroups across the duration of the experiment.
+        The following charts aggregate outcomes variables for the defined subgroups across the duration of the experiment (week 170 onward for now).
         """
         # --- SUMMARY STATISTICS (POST WEEK 170) ---
         summary_since_week170 = df_filtered[(df_filtered['week'] >= 170) & (df_filtered['group'].isin(selected_subgroups))].copy()
@@ -521,7 +521,7 @@ if df_research is not None:
                 )
                 kwh_totals['total_kwh'] = kwh_totals['total_kwh'] / kwh_totals['group'].map(summary_scale_map).fillna(1)
                 
-                st.subheader('Total kWh per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total kWh per Capita by Subgroup')
                 kwh_totals_chart = (
                     alt.Chart(kwh_totals)
                     .mark_bar()
@@ -544,7 +544,7 @@ if df_research is not None:
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Session Duration per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total Session Duration per Capita by Subgroup')
                 
                 session_duration_totals['total_session_duration'] = session_duration_totals['total_session_duration'] / session_duration_totals['group'].map(summary_scale_map).fillna(1)
                 
@@ -570,7 +570,7 @@ if df_research is not None:
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Charging Duration per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total Charging Duration per Capita by Subgroup')
                 
                 charging_duration_totals['total_charging_duration'] = charging_duration_totals['total_charging_duration'] / charging_duration_totals['group'].map(summary_scale_map).fillna(1)
                 
@@ -596,7 +596,7 @@ if df_research is not None:
                     .reset_index()
                     .sort_values('group')
                 )
-                st.subheader('Total Charging Days per Capita by Subgroup (Since Week 170)')
+                st.subheader('Total Charging Days per Capita by Subgroup')
                 
                 charging_days_totals['total_charging_days'] = charging_days_totals['total_charging_days'] / charging_days_totals['group'].map(summary_scale_map).fillna(1)
                 
