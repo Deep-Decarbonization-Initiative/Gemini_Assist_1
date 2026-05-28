@@ -68,37 +68,8 @@ if df_research is not None:
             (df_research['event_detail'] != 'nan')
         ].copy()
 
-        # Event rule visualization configurations (Dotted + 0.9 Opacity)
         if not event_markers.empty:
             event_markers = event_markers.drop_duplicates(subset=['week'])
-            
-            # 1. Thinner, background vertical dotted line rule
-            event_rule = alt.Chart(event_markers).mark_rule(
-                color='#808080', 
-                strokeWidth=1, 
-                strokeDash=[2, 2],
-                opacity=0.9
-            ).encode(
-                x=alt.X('week:Q', scale=alt.Scale(clamp=True))
-            )
-            
-            # 2. Static text label running vertically from bottom to top
-            event_text = alt.Chart(event_markers).mark_text(
-                align='left',
-                baseline='middle',
-                dx=50,
-                dy=5,
-                angle=270,
-                color='#666666',
-                fontSize=10
-            ).encode(
-                x=alt.X('week:Q'),
-                y=alt.value(270),  # Positioned near the bottom axis, extending upwards
-                text='event_detail:N'
-            )
-        else:
-            event_rule = None
-            event_text = None
 
 
         # ==============================================================================
@@ -338,8 +309,42 @@ if df_research is not None:
         st.markdown("---")
         st.header('Results & Graphical Insights 📈')
 
-        # Enforce checkbox configuration toggle rules
-        if not show_events:
+        # Dynamically build and scale event configuration rules to prevent axis extension breakage
+        if show_events and not event_markers.empty:
+            event_markers_filtered = event_markers[
+                (event_markers['week'] >= selected_week_range[0]) & 
+                (event_markers['week'] <= selected_week_range[1])
+            ].copy()
+            
+            if not event_markers_filtered.empty:
+                # 1. Thinner, background vertical dotted line rule
+                event_rule = alt.Chart(event_markers_filtered).mark_rule(
+                    color='#808080', 
+                    strokeWidth=1, 
+                    strokeDash=[2, 2],
+                    opacity=0.9
+                ).encode(
+                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True))
+                )
+                
+                # 2. Static text label running vertically from bottom to top
+                event_text = alt.Chart(event_markers_filtered).mark_text(
+                    align='left',
+                    baseline='middle',
+                    dx=50,
+                    dy=6,
+                    angle=270,
+                    color='#666666',
+                    fontSize=10
+                ).encode(
+                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    y=alt.value(270),  # Positioned near the bottom axis, extending upwards
+                    text='event_detail:N'
+                )
+            else:
+                event_rule = None
+                event_text = None
+        else:
             event_rule = None
             event_text = None
 
@@ -355,7 +360,7 @@ if df_research is not None:
         if not session_counts.empty:
             session_chart = (
                 alt.Chart(session_counts)
-                .mark_line(point=True)
+                .mark_line(point=True, clip=True)
                 .encode(
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Weekly Sessions')
@@ -390,7 +395,7 @@ if df_research is not None:
 
                 grouped_chart = (
                     alt.Chart(filtered_group_counts_daily)
-                    .mark_line(point=True)
+                    .mark_line(point=True, clip=True)
                     .encode(
                         x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                         y=alt.Y('session_count:Q', title='Campus Sessions Per Day'),
@@ -413,7 +418,7 @@ if df_research is not None:
             
             scaled_chart = (
                 alt.Chart(scaled_counts)
-                .mark_line(point=True)
+                .mark_line(point=True, clip=True)
                 .encode(
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('session_count:Q', title='Campus Sessions Per Capita Per Week'),
@@ -452,7 +457,7 @@ if df_research is not None:
             if show_weekly_kwh:
                 kwh_chart = (
                     alt.Chart(grouped_kwh)
-                    .mark_line(point=True)
+                    .mark_line(point=True, clip=True)
                     .encode(
                         x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                         y=alt.Y('kwh_sum:Q', title='Weekly kWh'),
@@ -474,7 +479,7 @@ if df_research is not None:
             
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
-                .mark_line(point=True)
+                .mark_line(point=True, clip=True)
                 .encode(
                     x=alt.X('week:Q', title='Week', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
                     y=alt.Y('kwh_sum:Q', title='Weekly kWh per Capita'),
