@@ -75,20 +75,18 @@ if df_research is not None:
         # ==============================================================================
         # AGGREGATE "OFFER" GROUP CREATION
         # ==============================================================================
-        # Identify the treatment column early to handle the overlapping groups
         treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         
         if treatment_col:
-            # Define the sub-groups that make up the "Offer" group
+            # BUG FIX: If Parquet loaded 'treatment' as a categorical type, it will crash 
+            # when we try to assign a new value ('Offer'). We must convert to string first.
+            if df_research[treatment_col].dtype.name == 'category':
+                df_research[treatment_col] = df_research[treatment_col].astype(str)
+                
             offer_components = ['Paid', 'Ignored', 'Left']
-            
-            # Isolate and copy the rows belonging to these specific groups
             df_offer_duplicates = df_research[df_research[treatment_col].isin(offer_components)].copy()
-            
-            # Reassign the treatment label on these copied rows to the new aggregate name
             df_offer_duplicates[treatment_col] = 'Offer'
             
-            # Append them back into the main research dataframe
             df_research = pd.concat([df_research, df_offer_duplicates], ignore_index=True)
 
 
@@ -145,6 +143,7 @@ if df_research is not None:
 
         if treatment_col:
             unique_treatments = sorted(df_research[treatment_col].dropna().unique().tolist())
+            # FIXED Typo: Removed double parenthesis near "did not pay"
             selected_treatments = st.multiselect("Treatment Group Filter (Note: Left refers to drivers who enrolled but did not pay):", options=unique_treatments, default=unique_treatments)
         else:
             selected_treatments = None
@@ -411,7 +410,6 @@ if df_research is not None:
                 .sort_values(['group', 'week'])
             )
             
-            # UPDATED: Replaced explicit plot generation with visibility checkbox control
             show_daily_sessions = st.checkbox("Show Total Daily Sessions By Group", value=False)
             if show_daily_sessions:
                 filtered_group_counts_daily = grouped_counts.copy()
@@ -431,7 +429,7 @@ if df_research is not None:
                     grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
                 st.altair_chart(grouped_chart, use_container_width=True)
 
-            # --- PLOT 3: Sessions Per Capita (LEGEND MOVED TO BOTTOM) ---
+            # --- PLOT 3: Sessions Per Capita ---
             st.subheader('Sessions per Capita per Week by Group')
             scaled_counts = grouped_counts.copy()
             
@@ -473,7 +471,6 @@ if df_research is not None:
             
             st.subheader('Weekly kWh by Group')
             
-            # UPDATED: Replaced explicit plot generation with visibility checkbox control
             show_weekly_kwh = st.checkbox("Show Total Weekly kWh by Group", value=False)
             """
             This plot, hidden by default, shows weekly kWh by subgroup but does not normalize by group size.
@@ -493,7 +490,7 @@ if df_research is not None:
                     kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
                 st.altair_chart(kwh_chart, use_container_width=True)
 
-            # --- PLOT 5: kWh Per Capita (LEGEND MOVED TO BOTTOM) ---
+            # --- PLOT 5: kWh Per Capita ---
             st.subheader('kWh per Capita per Week by Group')
             scaled_kwh = grouped_kwh.copy()
             
@@ -527,7 +524,7 @@ if df_research is not None:
         summary_since_week170 = df_filtered[(df_filtered['week'] >= 170) & (df_filtered['group'].isin(selected_subgroups))].copy()
         
         if selected_subgroups and not summary_since_week170.empty:
-            # OPTION A: Count unique drivers per subgroup who had active == 1 at least once since week 170
+            # Count unique drivers per subgroup who had active == 1 at least once since week 170
             if 'active' in summary_since_week170.columns:
                 summary_since_week170['active'] = pd.to_numeric(summary_since_week170['active'], errors='coerce')
                 summary_active_drivers = summary_since_week170[summary_since_week170['active'] == 1]
