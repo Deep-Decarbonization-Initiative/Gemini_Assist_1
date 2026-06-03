@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import pandas as pd
+import numpy as np
 import altair as alt
 from pathlib import Path
 
@@ -65,7 +66,7 @@ if df_research is not None:
         if 'event' in df_research.columns:
             df_research['event'] = pd.to_numeric(df_research['event'], errors='coerce')
         else:
-            df_research['event'] = pd.NA
+            df_research['event'] = np.nan
 
         if 'event_detail' in df_research.columns:
             df_research['event_detail'] = df_research['event_detail'].astype(str)
@@ -280,6 +281,9 @@ if df_research is not None:
             df_filtered = df_filtered.drop_duplicates(subset=[driver_col_id, 'week'])
 
         # 5. Clean Dynamic Group Evaluation Logic
+        # BUG FIX: Force a structural copy here to eliminate SettingWithCopyWarning errors
+        df_filtered = df_filtered.copy()
+
         if df_filtered.empty:
             df_filtered['group'] = ''
         elif chosen_disagg_cols and len(chosen_disagg_cols) > 0:
@@ -381,10 +385,11 @@ if df_research is not None:
                     tooltip=[alt.Tooltip('week:Q', title='Event Week'), alt.Tooltip('event_detail:N', title='Detail')]
                 )
                 
+                # BUG FIX: Adjusted dx offset from 200 to 5 so labels aren't pushed completely off-screen
                 event_text = alt.Chart(event_markers_filtered).mark_text(
                     align='left',
                     baseline='middle',
-                    dx=200,
+                    dx=5,
                     dy=5,
                     angle=270,
                     color='#666666',
@@ -411,7 +416,6 @@ if df_research is not None:
         This plot provides a level-set by showing the total number of sessions per week remaining in the data after applying filters from the Inclusion Criteria section.
         """
         if not session_counts.empty:
-            # UX FIX: Added Tooltips
             session_chart = (
                 alt.Chart(session_counts)
                 .mark_line(point=True, clip=True)
@@ -422,7 +426,8 @@ if df_research is not None:
                 )
             )
             if event_rule is not None:
-                session_chart = alt.layer(event_rule, session_chart, event_text)
+                # LAYOUT FIX: Added resolve_scale to prevent layered coordinate space collision
+                session_chart = alt.layer(event_rule, session_chart, event_text).resolve_scale(y='shared')
             st.altair_chart(session_chart, width='stretch')
         else:
             st.warning("No data rows available to draw total aggregate sessions.")
@@ -447,7 +452,6 @@ if df_research is not None:
                 filtered_group_counts_daily = grouped_counts.copy()
                 filtered_group_counts_daily['session_count'] = filtered_group_counts_daily['session_count'] / 7.0
 
-                # UX FIX: Added Tooltips
                 grouped_chart = (
                     alt.Chart(filtered_group_counts_daily)
                     .mark_line(point=True, clip=True)
@@ -460,7 +464,8 @@ if df_research is not None:
                     )
                 )
                 if event_rule is not None:
-                    grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
+                    # LAYOUT FIX: Added resolve_scale to prevent layered coordinate space collision
+                    grouped_chart = alt.layer(event_rule, grouped_chart, event_text).resolve_scale(y='shared')
                 st.altair_chart(grouped_chart, width='stretch')
 
             # --- PLOT 3: Sessions Per Capita ---
@@ -472,7 +477,6 @@ if df_research is not None:
             scaled_counts['active_driver_count'] = scaled_counts['active_driver_count'].fillna(1).replace(0, 1)
             scaled_counts['session_count'] = scaled_counts['session_count'] / scaled_counts['active_driver_count']
             
-            # UX FIX: Added Tooltips
             scaled_chart = (
                 alt.Chart(scaled_counts)
                 .mark_line(point=True, clip=True)
@@ -485,7 +489,8 @@ if df_research is not None:
                 )
             )
             if event_rule is not None:
-                scaled_chart = alt.layer(event_rule, scaled_chart, event_text)
+                # LAYOUT FIX: Added resolve_scale to prevent layered coordinate space collision
+                scaled_chart = alt.layer(event_rule, scaled_chart, event_text).resolve_scale(y='shared')
             st.altair_chart(scaled_chart, width='stretch')
         else:
             st.info("Check one or more subgroups above to view cohort line comparison charts.")
@@ -512,7 +517,6 @@ if df_research is not None:
             This plot, hidden by default, shows weekly kWh by subgroup but does not normalize by group size.
             """
             if show_weekly_kwh:
-                # UX FIX: Added Tooltips
                 kwh_chart = (
                     alt.Chart(grouped_kwh)
                     .mark_line(point=True, clip=True)
@@ -525,7 +529,8 @@ if df_research is not None:
                     )
                 )
                 if event_rule is not None:
-                    kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
+                    # LAYOUT FIX: Added resolve_scale to prevent layered coordinate space collision
+                    kwh_chart = alt.layer(event_rule, kwh_chart, event_text).resolve_scale(y='shared')
                 st.altair_chart(kwh_chart, width='stretch')
 
             # --- PLOT 5: kWh Per Capita ---
@@ -537,7 +542,6 @@ if df_research is not None:
             scaled_kwh['active_driver_count'] = scaled_kwh['active_driver_count'].fillna(1).replace(0, 1)
             scaled_kwh['kwh_sum'] = scaled_kwh['kwh_sum'] / scaled_kwh['active_driver_count']
             
-            # UX FIX: Added Tooltips
             scaled_kwh_chart = (
                 alt.Chart(scaled_kwh)
                 .mark_line(point=True, clip=True)
@@ -550,7 +554,8 @@ if df_research is not None:
                 )
             )
             if event_rule is not None:
-                scaled_kwh_chart = alt.layer(event_rule, scaled_kwh_chart, event_text)
+                # LAYOUT FIX: Added resolve_scale to prevent layered coordinate space collision
+                scaled_kwh_chart = alt.layer(event_rule, scaled_kwh_chart, event_text).resolve_scale(y='shared')
             st.altair_chart(scaled_kwh_chart, width='stretch')
         elif not kwh_col:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
