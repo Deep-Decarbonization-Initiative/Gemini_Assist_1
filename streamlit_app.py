@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from pathlib import Path
+import gc  # MEMORY OPTIMIZATION: Garbage Collection
 
 # ==============================================================================
 # HEADER SECTION
@@ -22,11 +23,19 @@ Everything below is preliminary and subject to change, with minimal QA/QC done t
 # Load local dataset from the repository's datasets folder.
 research_path = Path('data/SP26_userxweek_charging_light_28may26.parquet')
 
-# PERFORMANCE FIX: Cache the dataset so it doesn't reload on every interaction
+# PERFORMANCE & MEMORY FIX: Cache and downcast dataset numeric schemas
 @st.cache_data
 def load_research_data():
     if research_path.exists():
-        return pd.read_parquet(research_path)
+        df = pd.read_parquet(research_path)
+        
+        # MEMORY OPTIMIZATION: Downcast numerical columns to reduce RAM footprint
+        for col in df.select_dtypes(include=['int64']).columns:
+            df[col] = pd.to_numeric(df[col], downcast='integer')
+        for col in df.select_dtypes(include=['float64']).columns:
+            df[col] = pd.to_numeric(df[col], downcast='float')
+            
+        return df
     return None
 
 df_research_raw = load_research_data()
@@ -84,7 +93,7 @@ if df_research is not None:
 
 
         # ==============================================================================
-        # AGGREGATE "OFFER" GROUP CREATION
+        # AGGREGATE "OFFER" GROUP CREATION (Kept in original location per instructions)
         # ==============================================================================
         treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         
@@ -281,7 +290,7 @@ if df_research is not None:
             df_filtered = df_filtered.drop_duplicates(subset=[driver_col_id, 'week'])
 
         # 5. Clean Dynamic Group Evaluation Logic
-        # BUG FIX: Force a structural copy here to eliminate SettingWithCopyWarning errors
+        # BUG FIX: Force structural copy here to completely clear downstream SettingWithCopyWarning warnings
         df_filtered = df_filtered.copy()
 
         if df_filtered.empty:
@@ -688,3 +697,10 @@ if df_research is not None:
             st.warning('No subgroup sessions found on or after week 170 for the selected criteria.')
 else:
     st.error("SP26 Research Data is missing the 'week' field required for analysis.")
+
+# ==============================================================================
+# POST-RUN CLEANUP SECTION
+# ==============================================================================
+# MEMORY OPTIMIZATION: Manually invoke garbage collection at completion of rendering
+# cycle to actively flush dangling slice allocations before Streamlit loops.
+gc.collect()
