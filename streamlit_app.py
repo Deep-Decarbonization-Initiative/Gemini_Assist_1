@@ -23,8 +23,8 @@ Everything below is preliminary and subject to change, with minimal QA/QC done t
 # Load local dataset from the repository's datasets folder.
 research_path = Path('data/SP26_userxweek_charging_light_28may26.parquet')
 
-# PERFORMANCE & MEMORY FIX: Cache and downcast dataset numeric schemas
-@st.cache_data
+# PERFORMANCE & MEMORY FIX: Cache, cap entries, and downcast dataset numeric schemas
+@st.cache_data(max_entries=1)  # MEMORY OPTIMIZATION: Prevent cache bloat
 def load_research_data():
     if research_path.exists():
         df = pd.read_parquet(research_path)
@@ -93,23 +93,6 @@ if df_research is not None:
 
 
         # ==============================================================================
-        # AGGREGATE "OFFER" GROUP CREATION (Kept in original location per instructions)
-        # ==============================================================================
-        treatment_col = 'treatment' if 'treatment' in df_research.columns else None
-        
-        if treatment_col:
-            # BUG FIX: If Parquet loaded 'treatment' as a categorical type, convert to string
-            if df_research[treatment_col].dtype.name == 'category':
-                df_research[treatment_col] = df_research[treatment_col].astype(str)
-                
-            offer_components = ['Paid', 'Ignored', 'Left']
-            df_offer_duplicates = df_research[df_research[treatment_col].isin(offer_components)].copy()
-            df_offer_duplicates[treatment_col] = 'Offer'
-            
-            df_research = pd.concat([df_research, df_offer_duplicates], ignore_index=True)
-
-
-        # ==============================================================================
         # SETTINGS SECTION
         # ==============================================================================
         st.markdown("---")
@@ -149,6 +132,7 @@ if df_research is not None:
         Note: The 'Offer' group is an aggregation of 'Paid', 'Ignored', and 'Left'.
         """
         # Mapping base tracking metrics explicitly
+        treatment_col = 'treatment' if 'treatment' in df_research.columns else None
         drivetrain_col = 'autotypenew' if 'autotypenew' in df_research.columns else None
         recency_col = 'lastperiodcharged' if 'lastperiodcharged' in df_research.columns else None
         energy_col = 'baselinekwhcharged' if 'baselinekwhcharged' in df_research.columns else None
@@ -180,7 +164,16 @@ if df_research is not None:
             selected_drivetrains = None
 
         if treatment_col:
+            if df_research[treatment_col].dtype.name == 'category':
+                df_research[treatment_col] = df_research[treatment_col].astype(str)
             unique_treatments = sorted(df_research[treatment_col].dropna().astype(str).unique().tolist())
+            
+            # MEMORY OPTIMIZATION: Manually inject 'Offer' into UI options rather than expanding global dataset
+            offer_components = ['Paid', 'Ignored', 'Left']
+            if any(comp in unique_treatments for comp in offer_components) and 'Offer' not in unique_treatments:
+                unique_treatments.append('Offer')
+                unique_treatments = sorted(unique_treatments)
+                
             selected_treatments = st.multiselect("Treatment Group Filter (Note: Left refers to drivers who enrolled but did not pay):", options=unique_treatments, default=unique_treatments)
         else:
             selected_treatments = None
@@ -253,12 +246,22 @@ if df_research is not None:
             (df_research['week'] >= selected_week_range[0]) & 
             (df_research['week'] <= selected_week_range[1])
         ].copy()
+        
+        # Free up memory: global dataframe copy no longer needed
+        del df_research
 
         # 2. Apply Inclusion Criteria Categorical Filters 
         if selected_drivetrains is not None:
             df_filtered = df_filtered[df_filtered[drivetrain_col].astype(str).isin(selected_drivetrains)]
+            
+        # Temporarily filter out 'Offer' handling to allow base components to filter correctly
         if selected_treatments is not None:
-            df_filtered = df_filtered[df_filtered[treatment_col].astype(str).isin(selected_treatments)]
+            active_treatment_filters = [t for t in selected_treatments if t != 'Offer']
+            # If Offer is selected, we must ensure its component parts pass the base filter
+            if 'Offer' in selected_treatments:
+                active_treatment_filters.extend(offer_components)
+            df_filtered = df_filtered[df_filtered[treatment_col].astype(str).isin(active_treatment_filters)]
+
         if selected_recencies is not None:
             df_filtered = df_filtered[df_filtered[recency_col].astype(str).isin(selected_recencies)]
         if selected_energies is not None:
@@ -269,6 +272,16 @@ if df_research is not None:
             df_filtered = df_filtered[df_filtered[loc_col].astype(str).isin(selected_locs)]
         if selected_brings is not None:
             df_filtered = df_filtered[df_filtered[bring_col].astype(str).isin(selected_brings)]
+
+        # 3. MEMORY OPTIMIZATION: AGGREGATE "OFFER" GROUP CREATION (Post-Filtering)
+        # Create the Offer group *only* on the heavily reduced slice of data.
+        if treatment_col and selected_treatments and 'Offer' in selected_treatments:
+            df_offer_duplicates = df_filtered[df_filtered[treatment_col].astype(str).isin(offer_components)].copy()
+            if not df_offer_duplicates.empty:
+                df_offer_duplicates[treatment_col] = 'Offer'
+                df_filtered = pd.concat([df_filtered, df_offer_duplicates], ignore_index=True)
+            # Free up memory immediately
+            del df_offer_duplicates
 
         # Identify driver tracking ID column early for aggregate deduplication
         driver_col_id = 'driver' if 'driver' in df_filtered.columns else ('userid' if 'userid' in df_filtered.columns else df_filtered.columns[0])
@@ -282,6 +295,9 @@ if df_research is not None:
             .reset_index(name='session_count')
             .sort_values('week')
         )
+        
+        # Free up memory
+        del df_aggregate
 
         # CRITICAL BUG FIX: If 'Treatment' is not being used to draw distinct lines, 
         # we must deduplicate the duplicated 'Offer' rows to prevent double-counting 
@@ -368,6 +384,9 @@ if df_research is not None:
             .nunique()
             .reset_index(name='active_driver_count')
         )
+        
+        # Free up memory
+        del df_active_weekly
 
 
         # ==============================================================================
