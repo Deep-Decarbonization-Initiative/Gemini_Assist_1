@@ -423,7 +423,7 @@ if df_research is not None:
             )
             if event_rule is not None:
                 session_chart = alt.layer(event_rule, session_chart, event_text)
-            st.altair_chart(session_chart, use_container_width=True)
+            st.altair_chart(session_chart, width='stretch')
         else:
             st.warning("No data rows available to draw total aggregate sessions.")
 
@@ -461,7 +461,7 @@ if df_research is not None:
                 )
                 if event_rule is not None:
                     grouped_chart = alt.layer(event_rule, grouped_chart, event_text)
-                st.altair_chart(grouped_chart, use_container_width=True)
+                st.altair_chart(grouped_chart, width='stretch')
 
             # --- PLOT 3: Sessions Per Capita ---
             st.subheader('Sessions per Capita per Week by Group')
@@ -486,7 +486,7 @@ if df_research is not None:
             )
             if event_rule is not None:
                 scaled_chart = alt.layer(event_rule, scaled_chart, event_text)
-            st.altair_chart(scaled_chart, use_container_width=True)
+            st.altair_chart(scaled_chart, width='stretch')
         else:
             st.info("Check one or more subgroups above to view cohort line comparison charts.")
 
@@ -526,7 +526,7 @@ if df_research is not None:
                 )
                 if event_rule is not None:
                     kwh_chart = alt.layer(event_rule, kwh_chart, event_text)
-                st.altair_chart(kwh_chart, use_container_width=True)
+                st.altair_chart(kwh_chart, width='stretch')
 
             # --- PLOT 5: kWh Per Capita ---
             st.subheader('kWh per Capita per Week by Group')
@@ -551,7 +551,7 @@ if df_research is not None:
             )
             if event_rule is not None:
                 scaled_kwh_chart = alt.layer(event_rule, scaled_kwh_chart, event_text)
-            st.altair_chart(scaled_kwh_chart, use_container_width=True)
+            st.altair_chart(scaled_kwh_chart, width='stretch')
         elif not kwh_col:
             st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
 
@@ -599,7 +599,7 @@ if df_research is not None:
                         tooltip=[alt.Tooltip('group:N', title='Subgroup'), alt.Tooltip('total_kwh:Q', title='Total kWh', format=',.0f')]
                     )
                 )
-                st.altair_chart(kwh_totals_chart, use_container_width=True)
+                st.altair_chart(kwh_totals_chart, width='stretch')
 
             # Summary Chart 2: Total Session Duration Per Capita
             sess_dur_col = 'sessionduration_sum' if 'sessionduration_sum' in summary_since_week170.columns else ('session_duration' if 'session_duration' in summary_since_week170.columns else None)
@@ -625,7 +625,7 @@ if df_research is not None:
                         tooltip=[alt.Tooltip('group:N', title='Subgroup'), alt.Tooltip('total_session_duration:Q', title='Total Session Duration', format=',.0f')]
                     )
                 )
-                st.altair_chart(session_duration_chart, use_container_width=True)
+                st.altair_chart(session_duration_chart, width='stretch')
 
             # Summary Chart 3: Total Charging Duration Per Capita
             chg_dur_col = 'chargingduration_sum' if 'chargingduration_sum' in summary_since_week170.columns else ('charging_duration' if 'charging_duration' in summary_since_week170.columns else None)
@@ -651,7 +651,7 @@ if df_research is not None:
                         tooltip=[alt.Tooltip('group:N', title='Subgroup'), alt.Tooltip('total_charging_duration:Q', title='Total Charging Duration', format=',.0f')]
                     )
                 )
-                st.altair_chart(charging_duration_chart, use_container_width=True)
+                st.altair_chart(charging_duration_chart, width='stretch')
 
             # Summary Chart 4: Total Charging Days Per Capita
             chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week170.columns else ('charging_days' if 'charging_days' in summary_since_week170.columns else ('daysofcharging_sum' if 'daysofcharging_sum' in summary_since_week170.columns else None))
@@ -677,7 +677,7 @@ if df_research is not None:
                         tooltip=[alt.Tooltip('group:N', title='Subgroup'), alt.Tooltip('total_charging_days:Q', title='Total Charging Days', format=',.1f')]
                     )
                 )
-                st.altair_chart(charging_days_chart, use_container_width=True)
+                st.altair_chart(charging_days_chart, width='stretch')
 
         elif selected_subgroups:
             st.warning('No subgroup sessions found on or after week 170 for the selected criteria.')
