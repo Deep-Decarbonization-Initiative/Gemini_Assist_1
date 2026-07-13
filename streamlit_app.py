@@ -12,17 +12,19 @@ import gc  # MEMORY OPTIMIZATION: Garbage Collection
 st.title("D2I Subscription Experiment")
 st.title("Spring 2026 🚗🔌⚡")
 st.write(
-    "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with the Offer, Gift, and Control groups in the SP26 experiment." \
-    "It does not include any data from non-Triton Charger drivers, nor any data from Triton Chargers who were ineligible for the experiment."
+    "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with BEV drivers in the Offer, Gift, and Control groups in the SP26 experiment.  " \
+    "It does not include any data from non-Triton Charger drivers, nor any data from Triton Chargers who were ineligible for the experiment.  "
+    "Analagous comparisons for PHEV drivers in the experiment are available at: [Link TBD]"
 )
 """
 # Has the subscription experiment reshaped EV charging behavior? 
-Everything below is preliminary and subject to change, with minimal QA/QC done to date. The underlying datasets can be viewed below (but are hidden by default), followed by selectable options (e.g., timescale to view and groups of drivers to display) and then the descriptive figures themselves.
+Everything below is preliminary and subject to change.  
+The underlying datasets can be viewed below (but are hidden by default), followed by selectable options (e.g., timescale to view and groups of drivers to display) and then descriptive figures.
 """
 
 # Approach 1 Paths: Split Outcomes and Characteristics
-outcomes_path = Path('data/SP26_userxweek_charging_outcomes_13jul26.parquet')
-chars_path = Path('data/SP26_club_data_13jul26.parquet')
+outcomes_path = Path('data/SP26_userxweek_charging_outcomes_bev_13jul26.parquet')
+chars_path = Path('data/SP26_club_data_bev_13jul26.parquet')
 
 # PERFORMANCE & MEMORY FIX: Cache, cap entries, and downcast split dataset numeric schemas
 @st.cache_data(max_entries=1)  # MEMORY OPTIMIZATION: Prevent cache bloat
@@ -110,8 +112,9 @@ if 'week' in df_outcomes.columns:
     """
    The following sections control what data is visualized and how it is disaggregated in the plots that follow.
    The timescale slider dynamically adjusts the timeframe on the figures. 
-   The Inclusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., PHEVs, a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
-   The Disaggregation Fields then determine how to group the remaining data (e.g., by drivetrain, treatment group, and/or given covariates).
+   The Inclusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
+   The Disaggregation Fields then determine how to group the remaining data (e.g., by treatment group and/or given covariates).
+   Reminder: drivetrain (PHEV vs BEV) is no longer an adjustable setting, as PHEV-related figures and data have been relocated to [Link TBD]
     """
     # --- Sub-section 1: Timescale ---
     st.subheader('1. Timescale 📅')
@@ -127,7 +130,7 @@ if 'week' in df_outcomes.columns:
         "For reference, the SP26 experimental offers went out during week 167, discounts began week 170, and discounts will end week 183:",
         min_value=slider_min,
         max_value=slider_max,
-        value=(105, 177)
+        value=(105, 183)
     )
 
     # Event Visibility Toggle Checkbox
