@@ -146,7 +146,6 @@ if 'week' in df_outcomes.columns:
     """
     # Mapping base tracking metrics explicitly to the characteristics dataset
     treatment_col = 'treatment' if 'treatment' in df_chars.columns else None
-    drivetrain_col = 'autotypenew' if 'autotypenew' in df_chars.columns else None
     recency_col = 'lastperiodcharged' if 'lastperiodcharged' in df_chars.columns else None
     energy_col = 'baselinekwhcharged' if 'baselinekwhcharged' in df_chars.columns else None
     freq_col = 'baselinedaysofcharging' if 'baselinedaysofcharging' in df_chars.columns else None
@@ -168,13 +167,6 @@ if 'week' in df_outcomes.columns:
     if energy_col: df_chars[energy_col] = clean_int_str(df_chars[energy_col])
     if freq_col: df_chars[freq_col] = clean_int_str(df_chars[freq_col])
     if bring_col: df_chars[bring_col] = clean_int_str(df_chars[bring_col])
-
-    # Displaying criteria options reading directly from df_chars
-    if drivetrain_col:
-        unique_drivetrains = sorted(df_chars[drivetrain_col].dropna().astype(str).unique().tolist())
-        selected_drivetrains = st.multiselect("Drivetrain Filter (BEV, PHEV):", options=unique_drivetrains, default=unique_drivetrains)
-    else:
-        selected_drivetrains = None
 
     if treatment_col:
         if df_chars[treatment_col].dtype.name == 'category':
@@ -228,7 +220,6 @@ if 'week' in df_outcomes.columns:
     """
     disagg_options = {}
     if treatment_col: disagg_options["Treatment"] = treatment_col
-    if drivetrain_col: disagg_options["Vehicle Drivetrain"] = drivetrain_col
     if recency_col:    disagg_options["Recency Status"] = recency_col
     if energy_col:     disagg_options["Baseline Energy"] = energy_col
     if bring_col:      disagg_options["kWh Could Bring"] = bring_col
@@ -236,7 +227,6 @@ if 'week' in df_outcomes.columns:
 
     default_selections = []
     if "Treatment" in disagg_options: default_selections.append("Treatment")
-    if "Vehicle Drivetrain" in disagg_options: default_selections.append("Vehicle Drivetrain")
 
     selected_disagg_labels = st.multiselect(
         "Disaggregate cohorts by:",
@@ -252,9 +242,6 @@ if 'week' in df_outcomes.columns:
     
     # 1. Filter the SMALL characteristics dataset first based on user selection inputs
     df_chars_filtered = df_chars.copy()
-    
-    if selected_drivetrains is not None:
-        df_chars_filtered = df_chars_filtered[df_chars_filtered[drivetrain_col].astype(str).isin(selected_drivetrains)]
         
     if selected_treatments is not None:
         active_treatment_filters = [t for t in selected_treatments if t != 'Offer']
@@ -348,7 +335,7 @@ if 'week' in df_outcomes.columns:
     for idx, grp in enumerate(unique_groups_present):
         color_index = idx % len(palette_pool)
         group_color_map[grp] = palette_pool[color_index]
-        group_dash_map[grp] = [5, 5] if 'phev' in grp.lower() else []
+        group_dash_map[grp] = []  # Explicitly reset line dash metrics for solid lines
         
         icon = "⚪"
         if "control" in grp.lower(): icon = "🔴"
@@ -356,7 +343,7 @@ if 'week' in df_outcomes.columns:
         elif "offer" in grp.lower(): icon = "🟢"
         elif "enrolled" in grp.lower(): icon = "🟡"
 
-        line_style = "╌" if 'phev' in grp.lower() else "─"
+        line_style = "─"
         subgroup_display_labels[grp] = f"{icon} {line_style} {grp}"
 
     selected_subgroups = []
@@ -643,7 +630,7 @@ if 'week' in df_outcomes.columns:
 
         # Summary Chart 4: Total Charging Days Per Capita
         chg_days_col = 'chargingdays_sum' if 'chargingdays_sum' in summary_since_week170.columns else ('charging_days' if 'charging_days' in summary_since_week170.columns else ('daysofcharging_sum' if 'daysofcharging_sum' in summary_since_week170.columns else None))
-        if chg_days_col: 
+        if chg_days_col:
             summary_since_week170[chg_days_col] = pd.to_numeric(summary_since_week170[chg_days_col], errors='coerce')
             charging_days_totals = (
                 summary_since_week170.groupby('group')
