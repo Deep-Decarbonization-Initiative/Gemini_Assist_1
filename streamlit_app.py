@@ -114,6 +114,9 @@ if 'week' in df_outcomes.columns:
    The timescale slider dynamically adjusts the timeframe on the figures. 
    The Inclusion Criteria section can be adjusted to exclude data associated with certain field values (e.g., a particular treatment group, or drivers who hadn't charged since any given academic year (AY)).
    The Disaggregation Fields then determine how to group the remaining data (e.g., by treatment group and/or given covariates).
+   """
+    
+    """
    Reminder: drivetrain (PHEV vs BEV) is no longer an adjustable setting, as PHEV-related figures and data have been relocated to [Link TBD]
     """
     # --- Sub-section 1: Timescale ---
