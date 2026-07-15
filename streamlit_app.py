@@ -330,6 +330,11 @@ if 'week' in df_outcomes.columns:
         '#0072B2', '#E69F00', '#009E73', '#CC79A7', '#F0E442', 
         '#D55E00', '#56B4E9', '#999999', '#491D88', '#A6C48A'
     ]
+    # Pool of symbols chosen to dynamically correspond to the hex tones in palette_pool
+    emoji_pool = [
+        '🔵', '🟠', '🟢', '🟣', '🟡', 
+        '🔴', '🔷', '⚫', '🟪', '💚'
+    ]
     
     group_color_map = {}
     group_dash_map = {}
@@ -340,11 +345,8 @@ if 'week' in df_outcomes.columns:
         group_color_map[grp] = palette_pool[color_index]
         group_dash_map[grp] = []  # Explicitly reset line dash metrics for solid lines
         
-        icon = "⚪"
-        if "control" in grp.lower(): icon = "🔴"
-        elif "gift" in grp.lower(): icon = "🔵"
-        elif "offer" in grp.lower(): icon = "🟢"
-        elif "enrolled" in grp.lower(): icon = "🟡"
+        # Pull the matching emoji index to pair perfectly with the visual representation colors
+        icon = emoji_pool[color_index]
 
         line_style = "─"
         subgroup_display_labels[grp] = f"{icon} {line_style} {grp}"
