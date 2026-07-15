@@ -14,7 +14,7 @@ st.title("Spring 2026 🚗🔌⚡")
 st.write(
     "Data below reflects all Level 2 PowerFlex and ChargePoint sessions associated with BEV drivers in the Offer, Gift, and Control groups in the SP26 experiment.  " \
     "It does not include any data from non-Triton Charger drivers, nor any data from Triton Chargers who were ineligible for the experiment.  "
-    "Analagous comparisons for PHEV drivers in the experiment are available at: [Link TBD]"
+    "Analagous comparisons for PHEV drivers in the experiment are available at: [Link TBD]."
 )
 """
 # Has the subscription experiment reshaped EV charging behavior? 
@@ -77,11 +77,11 @@ if 'week' in df_outcomes.columns:
     df_outcomes = df_outcomes.dropna(subset=['week'])
     df_outcomes['week'] = df_outcomes['week'].astype(int)
 
-    # Identify the sessions metric column to sum up (attempted_sessions)
-    sessions_col = 'attempted_sessions' if 'attempted_sessions' in df_outcomes.columns else ('sessions' if 'sessions' in df_outcomes.columns else None)
+    # Identify the sessions metric column to sum up (successful_sessions)
+    sessions_col = 'successful_sessions' if 'successful_sessions' in df_outcomes.columns else ('sessions' if 'sessions' in df_outcomes.columns else None)
 
     if not sessions_col:
-        st.error("Could not find a valid sessions metric column (e.g., 'attempted_sessions') in the dataset.")
+        st.error("Could not find a valid sessions metric column (e.g., 'successful_sessions') in the dataset.")
         st.stop()
 
     # Process event markers directly from the weekly data structure
