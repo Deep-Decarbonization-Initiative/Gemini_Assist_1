@@ -17,8 +17,8 @@ st.write(
     "Analagous comparisons for PHEV drivers in the experiment are available at: [Link TBD]."
 )
 """
-# Has the subscription experiment reshaped EV charging behavior? 
-Everything below is preliminary and subject to change.  
+# Did the subscription experiment reshape EV charging behavior? 
+All results below are preliminary and subject to change.  
 The underlying datasets can be viewed below (but are hidden by default), followed by selectable options (e.g., timescale to view and groups of drivers to display) and then descriptive figures.
 """
 
