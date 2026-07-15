@@ -104,6 +104,16 @@ if 'week' in df_outcomes.columns:
     if not event_markers.empty:
         event_markers = event_markers.drop_duplicates(subset=['week'])
 
+    # Process UCSD holiday markers directly from the weekly data structure
+    if 'ucsd_holiday' in df_outcomes.columns:
+        holiday_markers = df_outcomes[
+            df_outcomes['ucsd_holiday'].notna() & (df_outcomes['ucsd_holiday'] > 0)
+        ].copy()
+        if not holiday_markers.empty:
+            holiday_markers = holiday_markers.drop_duplicates(subset=['week'])
+    else:
+        holiday_markers = pd.DataFrame(columns=['week', 'ucsd_holiday'])
+
     # ==============================================================================
     # SETTINGS SECTION
     # ==============================================================================
@@ -136,10 +146,10 @@ if 'week' in df_outcomes.columns:
         value=(105, 183)
     )
 
-    # Event Visibility Toggle Checkbox
-    show_events = st.checkbox("Display event dates.", value=True)
+    # Event & Holiday Visibility Toggle Checkbox
+    show_events = st.checkbox("Display event dates and holiday scales.", value=True)
     """
-    Dotted vertical lines indicate significant events in the club's history, including key experiment dates.
+    Dotted vertical lines indicate significant events in the club's history, including key experiment dates. Shaded bars capture underlying campus holiday magnitudes.
     """
     # --- Sub-section 2: Inclusion Criteria (Read entirely from df_chars) ---
     st.subheader('2. Inclusion Criteria: Treatment Groups and Covariates 🔍')
@@ -381,33 +391,53 @@ if 'week' in df_outcomes.columns:
     st.markdown("---")
     st.header('Results & Graphical Insights 📈')
 
-    if show_events and not event_markers.empty:
-        event_markers_filtered = event_markers[
-            (event_markers['week'] >= selected_week_range[0]) & 
-            (event_markers['week'] <= selected_week_range[1])
-        ].copy()
-        
-        if not event_markers_filtered.empty:
-            event_rule = alt.Chart(event_markers_filtered).mark_rule(
-                color='#808080', strokeWidth=1, strokeDash=[2, 2], opacity=0.9
-            ).encode(
-                x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                tooltip=[alt.Tooltip('week:Q', title='Event Week'), alt.Tooltip('event_detail:N', title='Detail')]
-            )
+    event_rule = None
+    event_text = None
+    holiday_rule = None
+
+    if show_events:
+        # Build event layers
+        if not event_markers.empty:
+            event_markers_filtered = event_markers[
+                (event_markers['week'] >= selected_week_range[0]) & 
+                (event_markers['week'] <= selected_week_range[1])
+            ].copy()
             
-            event_text = alt.Chart(event_markers_filtered).mark_text(
-                align='left', baseline='middle', dx=5, dy=5, angle=270, color='#666666', fontSize=10
-            ).encode(
-                x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                y=alt.value(270),  
-                text='event_detail:N'
-            )
-        else:
-            event_rule = None
-            event_text = None
-    else:
-        event_rule = None
-        event_text = None
+            if not event_markers_filtered.empty:
+                event_rule = alt.Chart(event_markers_filtered).mark_rule(
+                    color='#808080', strokeWidth=1, strokeDash=[2, 2], opacity=0.9
+                ).encode(
+                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    tooltip=[alt.Tooltip('week:Q', title='Event Week'), alt.Tooltip('event_detail:N', title='Detail')]
+                )
+                
+                event_text = alt.Chart(event_markers_filtered).mark_text(
+                    align='left', baseline='middle', dx=5, dy=5, angle=270, color='#666666', fontSize=10
+                ).encode(
+                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    y=alt.value(270),  
+                    text='event_detail:N'
+                )
+
+        # Build ucsd_holiday rules layer
+        if not holiday_markers.empty:
+            holiday_markers_filtered = holiday_markers[
+                (holiday_markers['week'] >= selected_week_range[0]) & 
+                (holiday_markers['week'] <= selected_week_range[1])
+            ].copy()
+
+            if not holiday_markers_filtered.empty:
+                holiday_rule = alt.Chart(holiday_markers_filtered).mark_rule(
+                    color='#E69F00', opacity=0.5
+                ).encode(
+                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                    strokeWidth=alt.condition(
+                        "datum.ucsd_holiday > 2",
+                        alt.value(0.4),
+                        alt.value(0.02)
+                    ),
+                    tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('ucsd_holiday:Q', title='Holiday Weight')]
+                )
 
     st.header('Weekly Outcomes Across Selected Timescale')
 
@@ -423,8 +453,15 @@ if 'week' in df_outcomes.columns:
                 tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('session_count:Q', title='Total Sessions')]
             )
         )
+        chart_layers = []
+        if holiday_rule is not None:
+            chart_layers.append(holiday_rule)
+        chart_layers.append(session_chart)
         if event_rule is not None:
-            session_chart = alt.layer(event_rule, session_chart, event_text).resolve_scale(y='shared')
+            chart_layers.append(event_rule)
+        if event_text is not None:
+            chart_layers.append(event_text)
+        session_chart = alt.layer(*chart_layers).resolve_scale(y='shared')
         st.altair_chart(session_chart, width='stretch')
     else:
         st.warning("No data rows available to draw total aggregate sessions.")
@@ -456,8 +493,15 @@ if 'week' in df_outcomes.columns:
                     tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('session_count:Q', title='Sessions/Day', format='.1f')]
                 )
             )
+            chart_layers = []
+            if holiday_rule is not None:
+                chart_layers.append(holiday_rule)
+            chart_layers.append(grouped_chart)
             if event_rule is not None:
-                grouped_chart = alt.layer(event_rule, grouped_chart, event_text).resolve_scale(y='shared')
+                chart_layers.append(event_rule)
+            if event_text is not None:
+                chart_layers.append(event_text)
+            grouped_chart = alt.layer(*chart_layers).resolve_scale(y='shared')
             st.altair_chart(grouped_chart, width='stretch')
 
         # --- PLOT 3: Sessions Per Capita ---
@@ -479,8 +523,15 @@ if 'week' in df_outcomes.columns:
                 tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('session_count:Q', title='Sessions/Capita', format='.2f')]
             )
         )
+        chart_layers = []
+        if holiday_rule is not None:
+            chart_layers.append(holiday_rule)
+        chart_layers.append(scaled_chart)
         if event_rule is not None:
-            scaled_chart = alt.layer(event_rule, scaled_chart, event_text).resolve_scale(y='shared')
+            chart_layers.append(event_rule)
+        if event_text is not None:
+            chart_layers.append(event_text)
+        scaled_chart = alt.layer(*chart_layers).resolve_scale(y='shared')
         st.altair_chart(scaled_chart, width='stretch')
     else:
         st.info("Check one or more subgroups above to view cohort line comparison charts.")
@@ -513,8 +564,15 @@ if 'week' in df_outcomes.columns:
                     tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('kwh_sum:Q', title='Total kWh', format='.0f')]
                 )
             )
+            chart_layers = []
+            if holiday_rule is not None:
+                chart_layers.append(holiday_rule)
+            chart_layers.append(kwh_chart)
             if event_rule is not None:
-                kwh_chart = alt.layer(event_rule, kwh_chart, event_text).resolve_scale(y='shared')
+                chart_layers.append(event_rule)
+            if event_text is not None:
+                chart_layers.append(event_text)
+            kwh_chart = alt.layer(*chart_layers).resolve_scale(y='shared')
             st.altair_chart(kwh_chart, width='stretch')
 
         # --- PLOT 5: kWh Per Capita ---
@@ -536,8 +594,15 @@ if 'week' in df_outcomes.columns:
                 tooltip=[alt.Tooltip('week:Q', title='Week'), alt.Tooltip('group:N', title='Group'), alt.Tooltip('kwh_sum:Q', title='kWh/Capita', format='.1f')]
             )
         )
+        chart_layers = []
+        if holiday_rule is not None:
+            chart_layers.append(holiday_rule)
+        chart_layers.append(scaled_kwh_chart)
         if event_rule is not None:
-            scaled_kwh_chart = alt.layer(event_rule, scaled_kwh_chart, event_text).resolve_scale(y='shared')
+            chart_layers.append(event_rule)
+        if event_text is not None:
+            chart_layers.append(event_text)
+        scaled_kwh_chart = alt.layer(*chart_layers).resolve_scale(y='shared')
         st.altair_chart(scaled_kwh_chart, width='stretch')
     elif not kwh_col:
         st.warning("The dataset does not contain energy consumption metrics ('kwh_sum' or 'energy').")
