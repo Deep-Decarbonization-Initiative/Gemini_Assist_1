@@ -420,39 +420,37 @@ if 'week' in df_outcomes.columns:
         event_rule = None
         event_text = None
 
-   # Construct Holiday Bars Layer (Rendered regardless of show_events toggle)
-if not holiday_markers.empty:
-    holiday_markers_filtered = holiday_markers[
-        (holiday_markers['week'] >= selected_week_range[0]) & 
-        (holiday_markers['week'] <= selected_week_range[1])
-    ].copy()
-    
-    if not holiday_markers_filtered.empty:
-        holiday_thin = holiday_markers_filtered[holiday_markers_filtered['ucsd_holiday'] <= 2]
-        holiday_thick = holiday_markers_filtered[holiday_markers_filtered['ucsd_holiday'] > 2]
+    # Construct Holiday Bars Layer (Properly Indented to remain within 'week' filter scope)
+    if not holiday_markers.empty:
+        holiday_markers_filtered = holiday_markers[
+            (holiday_markers['week'] >= selected_week_range[0]) & 
+            (holiday_markers['week'] <= selected_week_range[1])
+        ].copy()
         
-        holiday_layers = []
-        if not holiday_thin.empty:
-            # FIX: Changed strokeWidth from 0.2 to 12, and reduced opacity to 0.4
-            holiday_layers.append(
-                alt.Chart(holiday_thin).mark_rule(color='#D3D3D3', strokeWidth=12, opacity=0.4).encode(
-                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                    tooltip=[alt.Tooltip('week:Q', title='Holiday Week'), alt.Tooltip('ucsd_holiday:Q', title='Holiday Level')]
+        if not holiday_markers_filtered.empty:
+            holiday_thin = holiday_markers_filtered[holiday_markers_filtered['ucsd_holiday'] <= 2]
+            holiday_thick = holiday_markers_filtered[holiday_markers_filtered['ucsd_holiday'] > 2]
+            
+            holiday_layers = []
+            if not holiday_thin.empty:
+                holiday_layers.append(
+                    alt.Chart(holiday_thin).mark_rule(color='#D3D3D3', strokeWidth=3, opacity=0.4).encode(
+                        x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                        tooltip=[alt.Tooltip('week:Q', title='Holiday Week'), alt.Tooltip('ucsd_holiday:Q', title='Holiday Level')]
+                    )
                 )
-            )
-        if not holiday_thick.empty:
-            # FIX: Changed strokeWidth from 0.4 to 24, and reduced opacity to 0.4
-            holiday_layers.append(
-                alt.Chart(holiday_thick).mark_rule(color='#D3D3D3', strokeWidth=24, opacity=0.4).encode(
-                    x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
-                    tooltip=[alt.Tooltip('week:Q', title='Holiday Week'), alt.Tooltip('ucsd_holiday:Q', title='Holiday Level')]
+            if not holiday_thick.empty:
+                holiday_layers.append(
+                    alt.Chart(holiday_thick).mark_rule(color='#D3D3D3', strokeWidth=8, opacity=0.4).encode(
+                        x=alt.X('week:Q', scale=alt.Scale(domain=list(selected_week_range), clamp=True)),
+                        tooltip=[alt.Tooltip('week:Q', title='Holiday Week'), alt.Tooltip('ucsd_holiday:Q', title='Holiday Level')]
+                    )
                 )
-            )
-        holiday_rule = alt.layer(*holiday_layers) if holiday_layers else None
+            holiday_rule = alt.layer(*holiday_layers) if holiday_layers else None
+        else:
+            holiday_rule = None
     else:
         holiday_rule = None
-else:
-    holiday_rule = None
 
     st.header('Weekly Outcomes Across Selected Timescale')
 
@@ -754,8 +752,8 @@ else:
             st.altair_chart(charging_days_chart, width='stretch')
     elif selected_subgroups:
         st.warning('No subgroup sessions found on or after week 170 for the selected criteria.')
-    else:
-        st.error("SP26 Research Data is missing the 'week' field required for analysis.")
+else:
+    st.error("SP26 Research Data is missing the 'week' field required for analysis.")
 
 # ==============================================================================
 # POST-RUN CLEANUP SECTION
